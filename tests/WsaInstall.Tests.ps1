@@ -222,8 +222,6 @@ Describe "Invoke-WsaInstall — fresh install" {
 Describe "Stop-WsaWindows — process kill behavior" {
 
     BeforeEach {
-        $script:StoppedProcessNames = [System.Collections.Generic.List[string]]::new()
-
         Mock Get-Process {
             param([string]$Name, $ErrorAction)
             if ($Name -in @('WsaSettings', 'WsaClient')) {
@@ -232,27 +230,27 @@ Describe "Stop-WsaWindows — process kill behavior" {
             return $null
         }
 
-        Mock Stop-Process {
-            param($InputObject, [switch]$Force, $ErrorAction)
-            if ($InputObject -and $InputObject.Name) {
-                $script:StoppedProcessNames.Add($InputObject.Name) | Out-Null
-            }
-        }
+        Mock Stop-Process { }
     }
 
-    It "WSAI-02: Stop-WsaWindows kills WsaSettings process" {
+    It "WSAI-02: Stop-WsaWindows queries for WsaSettings process" {
         Stop-WsaWindows
-        $script:StoppedProcessNames | Should -Contain 'WsaSettings'
+        Should -Invoke Get-Process -ParameterFilter { $Name -eq 'WsaSettings' } -Times 1 -Exactly
     }
 
-    It "WSAI-02: Stop-WsaWindows kills WsaClient process" {
+    It "WSAI-02: Stop-WsaWindows queries for WsaClient process" {
         Stop-WsaWindows
-        $script:StoppedProcessNames | Should -Contain 'WsaClient'
+        Should -Invoke Get-Process -ParameterFilter { $Name -eq 'WsaClient' } -Times 1 -Exactly
     }
 
-    It "WSAI-02: Stop-WsaWindows does NOT kill WsaService" {
+    It "WSAI-02: Stop-WsaWindows calls Stop-Process exactly twice (for WsaSettings and WsaClient)" {
         Stop-WsaWindows
-        $script:StoppedProcessNames | Should -Not -Contain 'WsaService'
+        # Stop-Process should be called twice: once for WsaSettings, once for WsaClient
+        Should -Invoke Stop-Process -Times 2 -Exactly
+    }
+
+    It "WSAI-02: Stop-WsaWindows does NOT query for WsaService" {
+        Stop-WsaWindows
         Should -Invoke Get-Process -ParameterFilter { $Name -eq 'WsaService' } -Times 0 -Exactly
     }
 }
