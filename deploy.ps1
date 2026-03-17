@@ -44,6 +44,6 @@ try {
     Write-Log -Level "INFO" -Message "Deployment complete"
     exit $EXIT_SUCCESS
 } catch {
-    Write-Log -Level "ERROR" -Message "Unexpected failure: $($_.Exception.Message)"
-    exit $EXIT_UNKNOWN
+    Write-Log -Level "ERROR" -Message "Step failure: $($_.Exception.Message)"
+    exit $EXIT_STEP_FAILED
 }
