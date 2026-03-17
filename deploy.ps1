@@ -64,6 +64,18 @@ try {
             . (Join-Path $PSScriptRoot "steps\02-vm-features.ps1")
         }
 
+        Invoke-Step -StepName "WsaInstall" -Body {
+            . (Join-Path $PSScriptRoot "steps\03-wsa-install.ps1")
+        }
+
+        Invoke-Step -StepName "WsaConfigure" -Body {
+            . (Join-Path $PSScriptRoot "steps\04-wsa-configure.ps1")
+        }
+
+        Invoke-Step -StepName "ApkInstall" -Body {
+            . (Join-Path $PSScriptRoot "steps\05-apk-install.ps1")
+        }
+
         # Future steps added here by later phases
 
         Write-Log -Level "INFO" -Message "Deployment complete"
