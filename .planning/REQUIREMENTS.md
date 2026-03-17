@@ -37,11 +37,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Developer Mode and ADB
 
-- [ ] **ADBM-01**: Script writes Developer Mode registry key and restarts WSA to apply
-- [ ] **ADBM-02**: Script sets WSA to Continuous resource mode (prevents idle termination)
-- [ ] **ADBM-03**: ADB connection uses exponential backoff retry (5 attempts, up to 60s timeout)
-- [ ] **ADBM-04**: ADB connection checks `adb devices` output for `device` status (not exit codes)
-- [ ] **ADBM-05**: Script emits a clear, single-step manual instruction if ADB probe fails after all retries
+- [x] **ADBM-01**: Script writes Developer Mode registry key and restarts WSA to apply
+- [x] **ADBM-02**: Script sets WSA to Continuous resource mode (prevents idle termination)
+- [x] **ADBM-03**: ADB connection uses exponential backoff retry (5 attempts, up to 60s timeout)
+- [x] **ADBM-04**: ADB connection checks `adb devices` output for `device` status (not exit codes)
+- [x] **ADBM-05**: Script emits a clear, single-step manual instruction if ADB probe fails after all retries
 
 ### APK Sideloading
 
@@ -110,11 +110,11 @@ Deferred to future release. Tracked but not in current roadmap.
 | WSAI-02 | Phase 3 | Complete |
 | WSAI-03 | Phase 3 | Complete |
 | WSAI-04 | Phase 3 | Complete |
-| ADBM-01 | Phase 3 | Pending |
-| ADBM-02 | Phase 3 | Pending |
-| ADBM-03 | Phase 3 | Pending |
-| ADBM-04 | Phase 3 | Pending |
-| ADBM-05 | Phase 3 | Pending |
+| ADBM-01 | Phase 3 | Complete |
+| ADBM-02 | Phase 3 | Complete |
+| ADBM-03 | Phase 3 | Complete |
+| ADBM-04 | Phase 3 | Complete |
+| ADBM-05 | Phase 3 | Complete |
 | APKS-01 | Phase 3 | Pending |
 | APKS-02 | Phase 3 | Pending |
 | APKS-03 | Phase 3 | Pending |

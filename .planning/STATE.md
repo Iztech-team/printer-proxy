@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-01-PLAN.md — WSA install step with 12 Pester tests, all 4 WSAI requirements
-last_updated: "2026-03-17T11:14:40.307Z"
+stopped_at: Completed 03-02-PLAN.md — WSA configure + ADB connection with 16 new tests (80 total green)
+last_updated: "2026-03-17T11:15:10.235Z"
 last_activity: 2026-03-17 — Plan 01-01 complete (foundation modules)
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 100
 ---
 
@@ -53,6 +53,7 @@ Progress: [██████████] 100%
 | Phase 01-foundation P02 | 3 | 2 tasks | 4 files |
 | Phase 02-vm-features-reboot-resume P01 | 9min | 3 tasks | 3 files |
 | Phase 03-wsa-setup-adb-apk P01 | 4min | 2 tasks | 2 files |
+| Phase 03-wsa-setup-adb-apk P02 | 5min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,9 @@ Recent decisions affecting current work:
 - [Phase 02-vm-features-reboot-resume]: Nested try/catch adds EXIT_UNKNOWN outer path for unexpected errors; fixes pre-existing ExitCodes.Tests.ps1 failure
 - [Phase 03-wsa-setup-adb-apk]: Stop-WsaWindows test assertions use Should -Invoke Get-Process ParameterFilter instead of Stop-Process pipeline capture — pipeline mock binding unreliable for Stop-Process on Linux
 - [Phase 03-wsa-setup-adb-apk]: Invoke-WsaServiceWait emits WARN not exception on timeout — WSA may still initialize after polling window per RESEARCH.md
+- [Phase 03-02]: Remove -PropertyType DWord from Set-ItemProperty: registry type auto-inferred; not a standard parameter on all PS hosts
+- [Phase 03-02]: No Invoke-Sleep after last retry attempt in Connect-Adb: sleep only between attempts (i < MaxAttempts guard)
+- [Phase 03-02]: Mock InstallLocation returns Linux-friendly path for cross-platform test execution; use string interpolation not Join-Path for Windows-style paths
 
 ### Pending Todos
 
@@ -87,6 +91,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T11:14:40.304Z
-Stopped at: Completed 03-01-PLAN.md — WSA install step with 12 Pester tests, all 4 WSAI requirements
+Last session: 2026-03-17T11:15:10.233Z
+Stopped at: Completed 03-02-PLAN.md — WSA configure + ADB connection with 16 new tests (80 total green)
 Resume file: None
