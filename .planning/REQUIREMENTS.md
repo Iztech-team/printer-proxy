@@ -30,10 +30,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### WSA Installation
 
-- [ ] **WSAI-01**: WSA installs silently via `Add-AppxPackage -Register` from unpacked directory
-- [ ] **WSAI-02**: Script suppresses all auto-launched WSA windows after install
-- [ ] **WSAI-03**: Script waits for WSA initialization to complete before proceeding (poll-based, not fixed sleep)
-- [ ] **WSAI-04**: Script detects if WSA is already installed and skips reinstall
+- [x] **WSAI-01**: WSA installs silently via `Add-AppxPackage -Register` from unpacked directory
+- [x] **WSAI-02**: Script suppresses all auto-launched WSA windows after install
+- [x] **WSAI-03**: Script waits for WSA initialization to complete before proceeding (poll-based, not fixed sleep)
+- [x] **WSAI-04**: Script detects if WSA is already installed and skips reinstall
 
 ### Developer Mode and ADB
 
@@ -106,10 +106,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | VMFT-01 | Phase 2 | Complete |
 | VMFT-02 | Phase 2 | Complete |
 | VMFT-03 | Phase 2 | Complete |
-| WSAI-01 | Phase 3 | Pending |
-| WSAI-02 | Phase 3 | Pending |
-| WSAI-03 | Phase 3 | Pending |
-| WSAI-04 | Phase 3 | Pending |
+| WSAI-01 | Phase 3 | Complete |
+| WSAI-02 | Phase 3 | Complete |
+| WSAI-03 | Phase 3 | Complete |
+| WSAI-04 | Phase 3 | Complete |
 | ADBM-01 | Phase 3 | Pending |
 | ADBM-02 | Phase 3 | Pending |
 | ADBM-03 | Phase 3 | Pending |

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md — VM features, port reservation, reboot-resume with 15 new tests (52 total green)
-last_updated: "2026-03-17T10:40:54.470Z"
+stopped_at: Completed 03-01-PLAN.md — WSA install step with 12 Pester tests, all 4 WSAI requirements
+last_updated: "2026-03-17T11:14:40.307Z"
 last_activity: 2026-03-17 — Plan 01-01 complete (foundation modules)
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 6
+  completed_plans: 4
   percent: 100
 ---
 
@@ -52,6 +52,7 @@ Progress: [██████████] 100%
 *Updated after each plan completion*
 | Phase 01-foundation P02 | 3 | 2 tasks | 4 files |
 | Phase 02-vm-features-reboot-resume P01 | 9min | 3 tasks | 3 files |
+| Phase 03-wsa-setup-adb-apk P01 | 4min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,8 @@ Recent decisions affecting current work:
 - [Phase 02-vm-features-reboot-resume]: Invoke-SystemReboot test seam wraps Restart-Computer -Force for cross-platform Pester mock compatibility on Linux
 - [Phase 02-vm-features-reboot-resume]: Global command stubs in BeforeAll for Windows-only cmdlets (Get-WindowsOptionalFeature etc.) before Pester Mock to avoid CommandNotFoundException on Linux
 - [Phase 02-vm-features-reboot-resume]: Nested try/catch adds EXIT_UNKNOWN outer path for unexpected errors; fixes pre-existing ExitCodes.Tests.ps1 failure
+- [Phase 03-wsa-setup-adb-apk]: Stop-WsaWindows test assertions use Should -Invoke Get-Process ParameterFilter instead of Stop-Process pipeline capture — pipeline mock binding unreliable for Stop-Process on Linux
+- [Phase 03-wsa-setup-adb-apk]: Invoke-WsaServiceWait emits WARN not exception on timeout — WSA may still initialize after polling window per RESEARCH.md
 
 ### Pending Todos
 
@@ -84,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T10:35:59.747Z
-Stopped at: Completed 02-01-PLAN.md — VM features, port reservation, reboot-resume with 15 new tests (52 total green)
+Last session: 2026-03-17T11:14:40.304Z
+Stopped at: Completed 03-01-PLAN.md — WSA install step with 12 Pester tests, all 4 WSAI requirements
 Resume file: None

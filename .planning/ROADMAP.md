@@ -59,7 +59,7 @@ Plans:
   3. If ADB connection fails after all retries, a clear single-step manual instruction is displayed — script does not silently proceed or crash
   4. `adb shell pm list packages` shows the Baraka APK package after deployment
   5. Re-running the script on a correctly deployed terminal skips WSA install and APK install without error
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 - [ ] 03-01-PLAN.md — WSA install step (TDD): Test-WsaInstalled, Add-AppxPackage, window suppression, poll-based init wait
@@ -96,6 +96,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete    | 2026-03-17 |
 | 2. VM Features + Reboot Resume | 1/1 | Complete    | 2026-03-17 |
-| 3. WSA Setup + ADB + APK | 0/3 | Planned | - |
+| 3. WSA Setup + ADB + APK | 1/3 | In Progress|  |
 | 4. Print Server Hardening | 0/? | Not started | - |
 | 5. Verification | 0/? | Not started | - |
