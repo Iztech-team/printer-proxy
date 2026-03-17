@@ -162,7 +162,7 @@ Describe "Invoke-WsaRestart" {
         Mock Get-AppxPackage {
             param([string]$Name, $ErrorAction)
             return [PSCustomObject]@{
-                InstallLocation = "C:\Program Files\WindowsApps\MicrosoftCorporationII.WindowsSubsystemForAndroid_1.0_x64__8wekyb3d8bbwe"
+                InstallLocation = "/mock/wsa"
             }
         }
         Mock Get-Process {
