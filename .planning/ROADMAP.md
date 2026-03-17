@@ -44,7 +44,10 @@ Plans:
   2. When features need enabling, terminal reboots and the deployment script resumes automatically at the correct step with admin elevation intact
   3. Port 58526 is listed in `netsh int ipv4 show excludedportrange` output before the reboot occurs
   4. After successful resume, the scheduled task is no longer present in Task Scheduler
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 02-01-PLAN.md — VM feature enablement, port reservation, reboot-resume via scheduled task + Pester tests
 
 ### Phase 3: WSA Setup + ADB + APK
 **Goal**: The Baraka POS APK is installed and running inside WSA on a fully configured, ADB-connected terminal
@@ -87,7 +90,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete    | 2026-03-17 |
-| 2. VM Features + Reboot Resume | 0/? | Not started | - |
+| 2. VM Features + Reboot Resume | 0/1 | Planning complete | - |
 | 3. WSA Setup + ADB + APK | 0/? | Not started | - |
 | 4. Print Server Hardening | 0/? | Not started | - |
 | 5. Verification | 0/? | Not started | - |
