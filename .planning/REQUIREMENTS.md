@@ -110,28 +110,28 @@ Deferred to future release. Tracked but not in current roadmap.
 | WSAI-02 | Phase 3 | Pending |
 | WSAI-03 | Phase 3 | Pending |
 | WSAI-04 | Phase 3 | Pending |
-| ADBM-01 | Phase 4 | Pending |
-| ADBM-02 | Phase 4 | Pending |
-| ADBM-03 | Phase 4 | Pending |
-| ADBM-04 | Phase 4 | Pending |
-| ADBM-05 | Phase 4 | Pending |
-| APKS-01 | Phase 5 | Pending |
-| APKS-02 | Phase 5 | Pending |
-| APKS-03 | Phase 5 | Pending |
-| PRNT-01 | Phase 6 | Pending |
-| PRNT-02 | Phase 6 | Pending |
-| PRNT-03 | Phase 6 | Pending |
-| PRNT-04 | Phase 6 | Pending |
-| HLTH-01 | Phase 7 | Pending |
-| HLTH-02 | Phase 7 | Pending |
-| HLTH-03 | Phase 7 | Pending |
-| HLTH-04 | Phase 7 | Pending |
+| ADBM-01 | Phase 3 | Pending |
+| ADBM-02 | Phase 3 | Pending |
+| ADBM-03 | Phase 3 | Pending |
+| ADBM-04 | Phase 3 | Pending |
+| ADBM-05 | Phase 3 | Pending |
+| APKS-01 | Phase 3 | Pending |
+| APKS-02 | Phase 3 | Pending |
+| APKS-03 | Phase 3 | Pending |
+| PRNT-01 | Phase 4 | Pending |
+| PRNT-02 | Phase 4 | Pending |
+| PRNT-03 | Phase 4 | Pending |
+| PRNT-04 | Phase 4 | Pending |
+| HLTH-01 | Phase 5 | Pending |
+| HLTH-02 | Phase 5 | Pending |
+| HLTH-03 | Phase 5 | Pending |
+| HLTH-04 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 32 total
 - Mapped to phases: 32
-- Unmapped: 0 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-17*
-*Last updated: 2026-03-17 after initial definition*
+*Last updated: 2026-03-17 — traceability updated to 5-phase roadmap (coarse granularity)*
