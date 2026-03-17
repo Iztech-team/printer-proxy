@@ -2,6 +2,12 @@
 # deploy.ps1 — Baraka Store Terminal Deployment Entry Point
 # Run as: powershell.exe -ExecutionPolicy Bypass -File deploy.ps1
 # Must be run as Administrator on the target terminal.
+# After a VM-feature reboot, the BarakaDeploy-Resume scheduled task re-invokes:
+#   powershell.exe -File deploy.ps1 -ResumeAfterReboot
+
+param(
+    [switch]$ResumeAfterReboot
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -35,15 +41,43 @@ Initialize-Log -Path "$env:ProgramData\Baraka\deploy.log"
 # Step dispatch
 # ---------------------------------------------------------------------------
 try {
-    Invoke-Step -StepName "Preflight" -Body {
-        . (Join-Path $PSScriptRoot "steps\01-preflight.ps1")
+    try {
+        # ---------------------------------------------------------------------------
+        # Resume routing (Phase 2 — BOOT-03)
+        # When invoked with -ResumeAfterReboot, the scheduled task has already handled
+        # elevation and the machine has completed the VM feature reboot. Read the
+        # checkpoint token to log the resume point. Preflight is skipped on resume
+        # because all checks passed before the reboot.
+        # ---------------------------------------------------------------------------
+        if ($ResumeAfterReboot) {
+            $resumeStep = Get-DeployState -Name "ResumeStep"
+            Write-Log -Level "INFO" -Message "Resuming after reboot at step: $resumeStep"
+        }
+
+        if (-not $ResumeAfterReboot) {
+            Invoke-Step -StepName "Preflight" -Body {
+                . (Join-Path $PSScriptRoot "steps\01-preflight.ps1")
+            }
+        }
+
+        Invoke-Step -StepName "VmFeatures" -Body {
+            . (Join-Path $PSScriptRoot "steps\02-vm-features.ps1")
+        }
+
+        # Future steps added here by later phases
+
+        Write-Log -Level "INFO" -Message "Deployment complete"
+        exit $EXIT_SUCCESS
+    } catch {
+        Write-Log -Level "ERROR" -Message "Step failure: $($_.Exception.Message)"
+        exit $EXIT_STEP_FAILED
     }
-
-    # Future steps added here by later phases
-
-    Write-Log -Level "INFO" -Message "Deployment complete"
-    exit $EXIT_SUCCESS
 } catch {
-    Write-Log -Level "ERROR" -Message "Step failure: $($_.Exception.Message)"
-    exit $EXIT_STEP_FAILED
+    # Unexpected error outside of step handling (e.g., module import failure, log init failure)
+    exit $EXIT_UNKNOWN
+} finally {
+    # BOOT-04: Always clean up the resume task regardless of success, failure, or exception.
+    # -ErrorAction SilentlyContinue: safe to call even if the task was never registered
+    # (e.g., features were already enabled and no reboot occurred).
+    Unregister-ScheduledTask -TaskName 'BarakaDeploy-Resume' -Confirm:$false -ErrorAction SilentlyContinue
 }
