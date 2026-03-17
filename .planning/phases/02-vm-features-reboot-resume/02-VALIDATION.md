@@ -38,8 +38,7 @@ created: 2026-03-17
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 2-01-01 | 01 | 1 | VMFT-01, VMFT-02, VMFT-03 | unit | `Invoke-Pester -Path tests/VmFeatures.Tests.ps1` | ❌ W0 | ⬜ pending |
-| 2-01-02 | 01 | 1 | BOOT-01, BOOT-02, BOOT-03, BOOT-04 | unit | `Invoke-Pester -Path tests/RebootResume.Tests.ps1` | ❌ W0 | ⬜ pending |
+| 2-01-01 | 01 | 1 | VMFT-01, VMFT-02, VMFT-03, BOOT-01, BOOT-02, BOOT-03, BOOT-04 | unit | `Invoke-Pester -Path tests/VmFeatures.Tests.ps1` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -47,8 +46,7 @@ created: 2026-03-17
 
 ## Wave 0 Requirements
 
-- [ ] `tests/VmFeatures.Tests.ps1` — stubs for VMFT-01, VMFT-02, VMFT-03
-- [ ] `tests/RebootResume.Tests.ps1` — stubs for BOOT-01, BOOT-02, BOOT-03, BOOT-04
+- [ ] `tests/VmFeatures.Tests.ps1` — stubs for VMFT-01, VMFT-02, VMFT-03, BOOT-01, BOOT-02, BOOT-03, BOOT-04
 
 ---
 
