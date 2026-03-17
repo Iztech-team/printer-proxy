@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Script scaffolding, structured logging, preflight validation (completed 2026-03-17)
 - [x] **Phase 2: VM Features + Reboot Resume** - Enable Hyper-V, reserve port 58526, survive reboot with elevation (completed 2026-03-17)
-- [ ] **Phase 3: WSA Setup + ADB + APK** - Install WSA, configure developer mode, connect ADB, sideload the app
+- [x] **Phase 3: WSA Setup + ADB + APK** - Install WSA, configure developer mode, connect ADB, sideload the app (completed 2026-03-17)
 - [ ] **Phase 4: Print Server Hardening** - Harden CORS, fix bridge monitor, verify service state
 - [ ] **Phase 5: Verification** - Smoke test full stack, exit 0 only on confirmed working deployment
 
@@ -59,7 +59,7 @@ Plans:
   3. If ADB connection fails after all retries, a clear single-step manual instruction is displayed — script does not silently proceed or crash
   4. `adb shell pm list packages` shows the Baraka APK package after deployment
   5. Re-running the script on a correctly deployed terminal skips WSA install and APK install without error
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 03-01-PLAN.md — WSA install step (TDD): Test-WsaInstalled, Add-AppxPackage, window suppression, poll-based init wait
@@ -96,6 +96,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete    | 2026-03-17 |
 | 2. VM Features + Reboot Resume | 1/1 | Complete    | 2026-03-17 |
-| 3. WSA Setup + ADB + APK | 2/3 | In Progress|  |
+| 3. WSA Setup + ADB + APK | 2/3 | Complete    | 2026-03-17 |
 | 4. Print Server Hardening | 0/? | Not started | - |
 | 5. Verification | 0/? | Not started | - |
