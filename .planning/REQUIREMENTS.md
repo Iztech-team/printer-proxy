@@ -12,8 +12,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **CORE-01**: Script uses `$ErrorActionPreference = "Stop"` with try/catch on every mutating call
 - [x] **CORE-02**: Each step checks a registry guard before executing and sets it on success (idempotent)
 - [x] **CORE-03**: All output goes through a single timestamped `Write-Log` function to `deploy.log`
-- [ ] **CORE-04**: Script validates OS edition, admin privileges, virtualization capability, disk space, and ADB binary before any system changes
-- [ ] **CORE-05**: Script exits with code 0 only on full success, non-zero per failure category
+- [x] **CORE-04**: Script validates OS edition, admin privileges, virtualization capability, disk space, and ADB binary before any system changes
+- [x] **CORE-05**: Script exits with code 0 only on full success, non-zero per failure category
 
 ### Reboot Resume
 
@@ -97,8 +97,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | CORE-01 | Phase 1 | Complete (01-01) |
 | CORE-02 | Phase 1 | Complete (01-01) |
 | CORE-03 | Phase 1 | Complete (01-01) |
-| CORE-04 | Phase 1 | Pending |
-| CORE-05 | Phase 1 | Pending |
+| CORE-04 | Phase 1 | Complete |
+| CORE-05 | Phase 1 | Complete |
 | BOOT-01 | Phase 2 | Pending |
 | BOOT-02 | Phase 2 | Pending |
 | BOOT-03 | Phase 2 | Pending |

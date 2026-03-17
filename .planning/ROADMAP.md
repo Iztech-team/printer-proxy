@@ -12,7 +12,7 @@ Five phases deliver a single-script, zero-intervention deployment for Baraka sto
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Script scaffolding, structured logging, preflight validation
+- [x] **Phase 1: Foundation** - Script scaffolding, structured logging, preflight validation (completed 2026-03-17)
 - [ ] **Phase 2: VM Features + Reboot Resume** - Enable Hyper-V, reserve port 58526, survive reboot with elevation
 - [ ] **Phase 3: WSA Setup + ADB + APK** - Install WSA, configure developer mode, connect ADB, sideload the app
 - [ ] **Phase 4: Print Server Hardening** - Harden CORS, fix bridge monitor, verify service state
@@ -29,7 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Every mutating call is wrapped in try/catch and all output — including errors — appears in a timestamped `deploy.log`
   3. Re-running the script after a failure replays only the steps that haven't completed (registry guards prevent double execution)
   4. Script exits with a non-zero code matching the failure category; exit 0 is reserved for full success only
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 01-01-PLAN.md — Shared modules: Log.psm1, State.psm1, Guard.psm1 + Pester tests
@@ -86,7 +86,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 1/2 | In progress | - |
+| 1. Foundation | 2/2 | Complete   | 2026-03-17 |
 | 2. VM Features + Reboot Resume | 0/? | Not started | - |
 | 3. WSA Setup + ADB + APK | 0/? | Not started | - |
 | 4. Print Server Hardening | 0/? | Not started | - |

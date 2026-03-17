@@ -1,3 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: executing
+stopped_at: Completed 01-02-PLAN.md — deploy.ps1 entry point and 01-preflight.ps1 with 19 new tests (37 total green)
+last_updated: "2026-03-17T10:00:47.292Z"
+last_activity: 2026-03-17 — Plan 01-01 complete (foundation modules)
+progress:
+  total_phases: 5
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
+  percent: 100
+---
+
 # Project State
 
 ## Project Reference
@@ -14,7 +30,7 @@ Plan: 1 of 2 in current phase
 Status: In progress
 Last activity: 2026-03-17 — Plan 01-01 complete (foundation modules)
 
-Progress: [█░░░░░░░░░] 10%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -34,6 +50,7 @@ Progress: [█░░░░░░░░░] 10%
 - Trend: baseline
 
 *Updated after each plan completion*
+| Phase 01-foundation P02 | 3 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -47,6 +64,9 @@ Recent decisions affecting current work:
 - 01-01: Registry mocking via Pester -ModuleName chosen over HKCU test paths for cross-platform CI compatibility
 - 01-01: Set-RegistryBase exported from State.psm1 so tests can override without touching Guard or production code
 - 01-01: Guard routes all registry access through State helpers — single registry knowledge location
+- [Phase 01-02]: Test seams via mock parameters chosen over Pester mocks for exit-code testing: functions calling exit cannot be mocked at PS level without subprocess boundary
+- [Phase 01-02]: BARAKA_TEST_MODE env-var guard suppresses bottom-of-file Invoke-Preflight auto-run when dot-sourced from tests; production deploy.ps1 never sets this variable
+- [Phase 01-02]: WARN-not-ERROR on Get-ComputerInfo failure per RESEARCH.md Pitfall 2: false negatives on some hardware should not block valid deployment terminals
 
 ### Pending Todos
 
@@ -60,6 +80,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17
-Stopped at: Completed 01-01-PLAN.md — foundation modules (Log, State, Guard) with 18 Pester tests all green
+Last session: 2026-03-17T10:00:47.290Z
+Stopped at: Completed 01-02-PLAN.md — deploy.ps1 entry point and 01-preflight.ps1 with 19 new tests (37 total green)
 Resume file: None
