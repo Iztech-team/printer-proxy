@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-02-PLAN.md — WSA configure + ADB connection with 16 new tests (80 total green)
-last_updated: "2026-03-17T11:15:10.235Z"
+stopped_at: Completed 03-03-PLAN.md — APK install step + deploy.ps1 wiring with 9 new tests (89 total green)
+last_updated: "2026-03-17T11:19:44.456Z"
 last_activity: 2026-03-17 — Plan 01-01 complete (foundation modules)
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
   percent: 100
 ---
 
@@ -54,6 +54,7 @@ Progress: [██████████] 100%
 | Phase 02-vm-features-reboot-resume P01 | 9min | 3 tasks | 3 files |
 | Phase 03-wsa-setup-adb-apk P01 | 4min | 2 tasks | 2 files |
 | Phase 03-wsa-setup-adb-apk P02 | 5min | 2 tasks | 2 files |
+| Phase 03-wsa-setup-adb-apk P03 | 2min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 03-02]: Remove -PropertyType DWord from Set-ItemProperty: registry type auto-inferred; not a standard parameter on all PS hosts
 - [Phase 03-02]: No Invoke-Sleep after last retry attempt in Connect-Adb: sleep only between attempts (i < MaxAttempts guard)
 - [Phase 03-02]: Mock InstallLocation returns Linux-friendly path for cross-platform test execution; use string interpolation not Join-Path for Windows-style paths
+- [Phase 03-03]: Invoke-ApkInstallCommand is a separate test seam (not alias of Invoke-AdbCommand) to allow targeted mocking of install output independent of pm-list mocks
+- [Phase 03-03]: Get-InstalledApkVersionCode returns 1 (not version code) since aapt unavailable; any installed instance treated as current
 
 ### Pending Todos
 
@@ -91,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T11:15:10.233Z
-Stopped at: Completed 03-02-PLAN.md — WSA configure + ADB connection with 16 new tests (80 total green)
+Last session: 2026-03-17T11:19:44.454Z
+Stopped at: Completed 03-03-PLAN.md — APK install step + deploy.ps1 wiring with 9 new tests (89 total green)
 Resume file: None

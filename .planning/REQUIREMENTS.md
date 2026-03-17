@@ -45,9 +45,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### APK Sideloading
 
-- [ ] **APKS-01**: Script compares installed APK version before installing (skip if current)
-- [ ] **APKS-02**: Script auto-detects APK file in the deployment bundle directory
-- [ ] **APKS-03**: APK installs via `adb install -r` with success verification
+- [x] **APKS-01**: Script compares installed APK version before installing (skip if current)
+- [x] **APKS-02**: Script auto-detects APK file in the deployment bundle directory
+- [x] **APKS-03**: APK installs via `adb install -r` with success verification
 
 ### Print Server Hardening
 
@@ -115,9 +115,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | ADBM-03 | Phase 3 | Complete |
 | ADBM-04 | Phase 3 | Complete |
 | ADBM-05 | Phase 3 | Complete |
-| APKS-01 | Phase 3 | Pending |
-| APKS-02 | Phase 3 | Pending |
-| APKS-03 | Phase 3 | Pending |
+| APKS-01 | Phase 3 | Complete |
+| APKS-02 | Phase 3 | Complete |
+| APKS-03 | Phase 3 | Complete |
 | PRNT-01 | Phase 4 | Pending |
 | PRNT-02 | Phase 4 | Pending |
 | PRNT-03 | Phase 4 | Pending |
