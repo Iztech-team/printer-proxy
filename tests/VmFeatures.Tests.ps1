@@ -45,6 +45,32 @@ BeforeAll {
         $script:FakeStore[$Name] = $Value
     }
 
+    # Stub Windows-only commands that don't exist on Linux test runners.
+    # These stubs are replaced by per-test Mocks but must exist for Pester
+    # to intercept them. Without stubs, Mock fails with CommandNotFoundException
+    # on non-Windows platforms.
+    if (-not (Get-Command Get-WindowsOptionalFeature -ErrorAction SilentlyContinue)) {
+        function global:Get-WindowsOptionalFeature { param([switch]$Online, [string]$FeatureName) }
+    }
+    if (-not (Get-Command Enable-WindowsOptionalFeature -ErrorAction SilentlyContinue)) {
+        function global:Enable-WindowsOptionalFeature { param([switch]$Online, [string]$FeatureName, [switch]$All, [switch]$NoRestart) }
+    }
+    if (-not (Get-Command Register-ScheduledTask -ErrorAction SilentlyContinue)) {
+        function global:Register-ScheduledTask { param([string]$TaskName, $Action, $Trigger, $Settings, [string]$RunLevel, [switch]$Force) }
+    }
+    if (-not (Get-Command Unregister-ScheduledTask -ErrorAction SilentlyContinue)) {
+        function global:Unregister-ScheduledTask { param([string]$TaskName, [bool]$Confirm, $ErrorAction) }
+    }
+    if (-not (Get-Command New-ScheduledTaskAction -ErrorAction SilentlyContinue)) {
+        function global:New-ScheduledTaskAction { param([string]$Execute, [string]$Argument) }
+    }
+    if (-not (Get-Command New-ScheduledTaskTrigger -ErrorAction SilentlyContinue)) {
+        function global:New-ScheduledTaskTrigger { param([switch]$AtStartup) }
+    }
+    if (-not (Get-Command New-ScheduledTaskSettingsSet -ErrorAction SilentlyContinue)) {
+        function global:New-ScheduledTaskSettingsSet { param($ExecutionTimeLimit) }
+    }
+
     # Load the step file with BARAKA_TEST_MODE=1 to prevent auto-execution
     $env:BARAKA_TEST_MODE = '1'
     . $script:StepPath
@@ -112,7 +138,8 @@ Describe "Invoke-VmFeatures — features already enabled" {
             return [PSCustomObject]@{ FeatureName = $FeatureName; State = 'Enabled' }
         }
         Mock Enable-WindowsOptionalFeature { }
-        Mock Restart-Computer { }
+        # Invoke-SystemReboot is the test seam wrapping Restart-Computer -Force
+        Mock Invoke-SystemReboot { }
         Mock Register-ScheduledTask { }
         Mock Unregister-ScheduledTask { }
         Mock New-ScheduledTaskAction { return [PSCustomObject]@{} }
@@ -126,9 +153,9 @@ Describe "Invoke-VmFeatures — features already enabled" {
         Should -Invoke Enable-WindowsOptionalFeature -Times 0 -Exactly
     }
 
-    It "VMFT-02: does NOT call Restart-Computer when features are already enabled" {
+    It "VMFT-02: does NOT trigger a system reboot when features are already enabled" {
         Invoke-VmFeatures
-        Should -Invoke Restart-Computer -Times 0 -Exactly
+        Should -Invoke Invoke-SystemReboot -Times 0 -Exactly
     }
 
     It "VMFT-02: does NOT call Register-ScheduledTask when features are already enabled" {
@@ -152,7 +179,7 @@ Describe "Invoke-VmFeatures — features need enabling, no restart required" {
         Mock Enable-WindowsOptionalFeature {
             return [PSCustomObject]@{ RestartNeeded = $false }
         }
-        Mock Restart-Computer { }
+        Mock Invoke-SystemReboot { }
         Mock Register-ScheduledTask { }
         Mock Unregister-ScheduledTask { }
         Mock New-ScheduledTaskAction { return [PSCustomObject]@{} }
@@ -171,9 +198,9 @@ Describe "Invoke-VmFeatures — features need enabling, no restart required" {
         Should -Invoke Enable-WindowsOptionalFeature -ParameterFilter { $FeatureName -eq 'HypervisorPlatform' } -Times 1 -Exactly
     }
 
-    It "VMFT-03: does NOT call Restart-Computer when RestartNeeded is false" {
+    It "VMFT-03: does NOT trigger a reboot when RestartNeeded is false" {
         Invoke-VmFeatures
-        Should -Invoke Restart-Computer -Times 0 -Exactly
+        Should -Invoke Invoke-SystemReboot -Times 0 -Exactly
     }
 }
 
@@ -191,7 +218,7 @@ Describe "Invoke-VmFeatures — features need enabling, restart required" {
             param([switch]$Online, [string]$FeatureName)
             return [PSCustomObject]@{ FeatureName = $FeatureName; State = 'Disabled' }
         }
-        # Enable returns RestartNeeded = true for VirtualMachinePlatform
+        # Enable returns RestartNeeded = true for both features
         Mock Enable-WindowsOptionalFeature {
             param([switch]$Online, [string]$FeatureName, [switch]$All, [switch]$NoRestart)
             return [PSCustomObject]@{ RestartNeeded = $true }
@@ -204,7 +231,7 @@ Describe "Invoke-VmFeatures — features need enabling, restart required" {
             $script:CallSequence.Add('RegisterTask') | Out-Null
             return [PSCustomObject]@{}
         }
-        Mock Restart-Computer {
+        Mock Invoke-SystemReboot {
             $script:CallSequence.Add('Restart') | Out-Null
         }
         Mock New-ScheduledTaskAction { return [PSCustomObject]@{} }
@@ -223,19 +250,19 @@ Describe "Invoke-VmFeatures — features need enabling, restart required" {
         Should -Invoke Enable-WindowsOptionalFeature -ParameterFilter { $FeatureName -eq 'HypervisorPlatform' } -Times 1 -Exactly
     }
 
-    It "VMFT-03: calls Restart-Computer when RestartNeeded is true" {
+    It "VMFT-03: triggers Invoke-SystemReboot when RestartNeeded is true" {
         Invoke-VmFeatures
-        Should -Invoke Restart-Computer -Times 1 -Exactly
+        Should -Invoke Invoke-SystemReboot -Times 1 -Exactly
     }
 
-    It "BOOT-02: calls Invoke-NetshPortReserve (port 58526 reservation) before Restart-Computer" {
+    It "BOOT-02: calls Invoke-NetshPortReserve (port 58526 reservation) before Invoke-SystemReboot" {
         Invoke-VmFeatures
         Should -Invoke Invoke-NetshPortReserve -Times 1 -Exactly
-        $netshIdx  = $script:CallSequence.IndexOf('netsh')
+        $netshIdx   = $script:CallSequence.IndexOf('netsh')
         $restartIdx = $script:CallSequence.IndexOf('Restart')
-        $netshIdx  | Should -BeGreaterOrEqual 0
+        $netshIdx   | Should -BeGreaterOrEqual 0
         $restartIdx | Should -BeGreaterOrEqual 0
-        $netshIdx  | Should -BeLessThan $restartIdx
+        $netshIdx   | Should -BeLessThan $restartIdx
     }
 
     It "BOOT-01: calls Register-ScheduledTask with -RunLevel Highest and task name BarakaDeploy-Resume" {
@@ -245,13 +272,13 @@ Describe "Invoke-VmFeatures — features need enabling, restart required" {
         } -Times 1 -Exactly
     }
 
-    It "BOOT-03: calls Set-DeployState with 'ResumeStep' before Restart-Computer" {
+    It "BOOT-03: calls Set-DeployState with 'ResumeStep' before Invoke-SystemReboot" {
         Invoke-VmFeatures
         # Verify state was saved to registry
         $script:FakeStore['ResumeStep'] | Should -Not -BeNullOrEmpty
-        # And verify Restart-Computer was called
-        Should -Invoke Restart-Computer -Times 1 -Exactly
-        # And state must be saved before restart (RegisterTask then Restart in sequence)
+        # Verify Invoke-SystemReboot was called
+        Should -Invoke Invoke-SystemReboot -Times 1 -Exactly
+        # State must be saved before reboot (RegisterTask then Restart in sequence)
         $registerIdx = $script:CallSequence.IndexOf('RegisterTask')
         $restartIdx  = $script:CallSequence.IndexOf('Restart')
         $registerIdx | Should -BeLessThan $restartIdx
