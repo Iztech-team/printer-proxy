@@ -13,7 +13,7 @@ Five phases deliver a single-script, zero-intervention deployment for Baraka sto
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Script scaffolding, structured logging, preflight validation (completed 2026-03-17)
-- [ ] **Phase 2: VM Features + Reboot Resume** - Enable Hyper-V, reserve port 58526, survive reboot with elevation
+- [x] **Phase 2: VM Features + Reboot Resume** - Enable Hyper-V, reserve port 58526, survive reboot with elevation (completed 2026-03-17)
 - [ ] **Phase 3: WSA Setup + ADB + APK** - Install WSA, configure developer mode, connect ADB, sideload the app
 - [ ] **Phase 4: Print Server Hardening** - Harden CORS, fix bridge monitor, verify service state
 - [ ] **Phase 5: Verification** - Smoke test full stack, exit 0 only on confirmed working deployment
@@ -44,7 +44,7 @@ Plans:
   2. When features need enabling, terminal reboots and the deployment script resumes automatically at the correct step with admin elevation intact
   3. Port 58526 is listed in `netsh int ipv4 show excludedportrange` output before the reboot occurs
   4. After successful resume, the scheduled task is no longer present in Task Scheduler
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 02-01-PLAN.md — VM feature enablement, port reservation, reboot-resume via scheduled task + Pester tests
@@ -90,7 +90,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 2/2 | Complete    | 2026-03-17 |
-| 2. VM Features + Reboot Resume | 0/1 | Planning complete | - |
+| 2. VM Features + Reboot Resume | 1/1 | Complete   | 2026-03-17 |
 | 3. WSA Setup + ADB + APK | 0/? | Not started | - |
 | 4. Print Server Hardening | 0/? | Not started | - |
 | 5. Verification | 0/? | Not started | - |

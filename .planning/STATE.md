@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-02-PLAN.md — deploy.ps1 entry point and 01-preflight.ps1 with 19 new tests (37 total green)
-last_updated: "2026-03-17T10:05:12.706Z"
+stopped_at: Completed 02-01-PLAN.md — VM features, port reservation, reboot-resume with 15 new tests (52 total green)
+last_updated: "2026-03-17T10:35:59.751Z"
 last_activity: 2026-03-17 — Plan 01-01 complete (foundation modules)
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 2
+  total_plans: 3
+  completed_plans: 3
   percent: 100
 ---
 
@@ -51,6 +51,7 @@ Progress: [██████████] 100%
 
 *Updated after each plan completion*
 | Phase 01-foundation P02 | 3 | 2 tasks | 4 files |
+| Phase 02-vm-features-reboot-resume P01 | 9min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,9 @@ Recent decisions affecting current work:
 - [Phase 01-02]: Test seams via mock parameters chosen over Pester mocks for exit-code testing: functions calling exit cannot be mocked at PS level without subprocess boundary
 - [Phase 01-02]: BARAKA_TEST_MODE env-var guard suppresses bottom-of-file Invoke-Preflight auto-run when dot-sourced from tests; production deploy.ps1 never sets this variable
 - [Phase 01-02]: WARN-not-ERROR on Get-ComputerInfo failure per RESEARCH.md Pitfall 2: false negatives on some hardware should not block valid deployment terminals
+- [Phase 02-vm-features-reboot-resume]: Invoke-SystemReboot test seam wraps Restart-Computer -Force for cross-platform Pester mock compatibility on Linux
+- [Phase 02-vm-features-reboot-resume]: Global command stubs in BeforeAll for Windows-only cmdlets (Get-WindowsOptionalFeature etc.) before Pester Mock to avoid CommandNotFoundException on Linux
+- [Phase 02-vm-features-reboot-resume]: Nested try/catch adds EXIT_UNKNOWN outer path for unexpected errors; fixes pre-existing ExitCodes.Tests.ps1 failure
 
 ### Pending Todos
 
@@ -80,6 +84,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T10:00:47.290Z
-Stopped at: Completed 01-02-PLAN.md — deploy.ps1 entry point and 01-preflight.ps1 with 19 new tests (37 total green)
+Last session: 2026-03-17T10:35:59.747Z
+Stopped at: Completed 02-01-PLAN.md — VM features, port reservation, reboot-resume with 15 new tests (52 total green)
 Resume file: None

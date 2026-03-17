@@ -17,16 +17,16 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Reboot Resume
 
-- [ ] **BOOT-01**: Reboot-resume uses a scheduled task at HIGHEST run level (not RunOnce)
-- [ ] **BOOT-02**: Port 58526 is reserved via `netsh` before the Hyper-V reboot
-- [ ] **BOOT-03**: Checkpoint state is saved to JSON before reboot for clean resume
-- [ ] **BOOT-04**: Scheduled task self-deletes after successful resume
+- [x] **BOOT-01**: Reboot-resume uses a scheduled task at HIGHEST run level (not RunOnce)
+- [x] **BOOT-02**: Port 58526 is reserved via `netsh` before the Hyper-V reboot
+- [x] **BOOT-03**: Checkpoint state is saved to JSON before reboot for clean resume
+- [x] **BOOT-04**: Scheduled task self-deletes after successful resume
 
 ### VM Features
 
-- [ ] **VMFT-01**: Script enables VirtualMachinePlatform and HypervisorPlatform silently
-- [ ] **VMFT-02**: Script detects if features are already enabled and skips if so
-- [ ] **VMFT-03**: Script triggers reboot only when `RestartNeeded` is true
+- [x] **VMFT-01**: Script enables VirtualMachinePlatform and HypervisorPlatform silently
+- [x] **VMFT-02**: Script detects if features are already enabled and skips if so
+- [x] **VMFT-03**: Script triggers reboot only when `RestartNeeded` is true
 
 ### WSA Installation
 
@@ -99,13 +99,13 @@ Deferred to future release. Tracked but not in current roadmap.
 | CORE-03 | Phase 1 | Complete (01-01) |
 | CORE-04 | Phase 1 | Complete |
 | CORE-05 | Phase 1 | Complete |
-| BOOT-01 | Phase 2 | Pending |
-| BOOT-02 | Phase 2 | Pending |
-| BOOT-03 | Phase 2 | Pending |
-| BOOT-04 | Phase 2 | Pending |
-| VMFT-01 | Phase 2 | Pending |
-| VMFT-02 | Phase 2 | Pending |
-| VMFT-03 | Phase 2 | Pending |
+| BOOT-01 | Phase 2 | Complete |
+| BOOT-02 | Phase 2 | Complete |
+| BOOT-03 | Phase 2 | Complete |
+| BOOT-04 | Phase 2 | Complete |
+| VMFT-01 | Phase 2 | Complete |
+| VMFT-02 | Phase 2 | Complete |
+| VMFT-03 | Phase 2 | Complete |
 | WSAI-01 | Phase 3 | Pending |
 | WSAI-02 | Phase 3 | Pending |
 | WSAI-03 | Phase 3 | Pending |
