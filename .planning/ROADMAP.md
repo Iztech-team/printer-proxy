@@ -29,7 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Every mutating call is wrapped in try/catch and all output — including errors — appears in a timestamped `deploy.log`
   3. Re-running the script after a failure replays only the steps that haven't completed (registry guards prevent double execution)
   4. Script exits with a non-zero code matching the failure category; exit 0 is reserved for full success only
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Shared modules: Log.psm1, State.psm1, Guard.psm1 + Pester tests
+- [ ] 01-02-PLAN.md — Entry point deploy.ps1 + preflight validation + Pester tests
 
 ### Phase 2: VM Features + Reboot Resume
 **Goal**: Terminal boots with VirtualMachinePlatform and HypervisorPlatform enabled, port 58526 reserved from Hyper-V, and the deployment resumes automatically at HIGHEST privilege after reboot
@@ -82,7 +86,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/? | Not started | - |
+| 1. Foundation | 0/2 | Planning complete | - |
 | 2. VM Features + Reboot Resume | 0/? | Not started | - |
 | 3. WSA Setup + ADB + APK | 0/? | Not started | - |
 | 4. Print Server Hardening | 0/? | Not started | - |
