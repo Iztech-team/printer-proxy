@@ -1,0 +1,26 @@
+Run these commands one by one in PowerShell (as Administrator):
+
+Step 1 - Try installing the driver:
+Add-PrinterDriver -Name "Generic / Text Only" -InfPath "$env:SystemRoot\inf\ntprint.inf"
+
+Step 2 - If step 1 fails, try this instead:
+pnputil /add-driver "$env:SystemRoot\inf\ntprint.inf" /install
+
+Then retry step 1:
+Add-PrinterDriver -Name "Generic / Text Only"
+
+Step 3 - Once the driver is installed, create the printer:
+Add-Printer -Name "POS-Printer" -DriverName "Generic / Text Only" -PortName "USB001"
+
+Step 4 - Verify it works:
+Get-Printer | Format-Table Name, PortName, DriverName
+
+===== TESTING THE PRINTER =====
+
+Step 5 - Test basic printing (run in project folder):
+.\venv\Scripts\python.exe -c "from escpos.printer import Win32Raw; p = Win32Raw('POS-Printer'); p.text('Hello World\n'); p.cut()"
+
+Step 6 - Test beep:
+.\venv\Scripts\python.exe -c "from escpos.printer import Win32Raw; p = Win32Raw('POS-Printer'); p._raw(b'\x1b\x42\x03\x05')"
+
+Step 7 - If step 5 or 6 gives an error, copy the full error message.

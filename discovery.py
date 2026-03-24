@@ -1,14 +1,17 @@
 """
 Printer Discovery
 ==================
-Discovers thermal printers via network scan (port 9100) and USB.
+Discovers thermal printers via network scan (port 9100),
+serial ports (CH340/PL2303), and OS-level printer devices.
 
 Network: Parallel TCP scan + multi-strategy MAC resolution.
-USB: pyusb device enumeration with known vendor ID matching.
+Serial: pyserial port enumeration.
+System: Win32 printer spooler (Windows) or /dev/usb/lp* (Linux).
 
 Works on Windows, Linux, and macOS.
 """
 
+import glob as glob_mod
 import socket
 import subprocess
 import re
@@ -28,32 +31,8 @@ _SUBPROCESS_KWARGS = (
 
 
 
-# Known thermal printer USB vendor IDs
-KNOWN_PRINTER_VENDORS = {
-    0x04B8: "Epson",
-    0x0519: "Star Micronics",
-    0x0DD4: "Custom",
-    0x0FE6: "ICS Electronics",  # Kontron/generic
-    0x0416: "WinBond (POS)",
-    0x0483: "STMicroelectronics (POS)",
-    0x1504: "SNBC",
-    0x1FC9: "NXP (POS)",
-    0x20D1: "Dingding",
-    0x0525: "Netchip (POS)",
-    0x1A86: "QinHeng (CH340/POS)",
-    0x28E9: "GD32 (POS)",
-    0x0FE6: "ICS Electronics",
-    0x0DD4: "Custom Engineering",
-    0x04E8: "Samsung",
-    0x04F9: "Brother",
-    0x0B00: "Sewoo",
-    0x0493: "ESC/POS compatible",
-    0x0456: "Analog Devices (POS)",
-}
-
-
 class PrinterDiscovery:
-    """Discover printers via network scan and USB enumeration."""
+    """Discover printers via network scan, serial ports, and OS printer devices."""
 
     PRINTER_PORT = 9100
     SCAN_TIMEOUT = 3  # seconds per host
@@ -518,20 +497,25 @@ class PrinterDiscovery:
     def scan_streaming(self, subnet=None):
         """
         Generator that yields printers as they are discovered.
-        Yields dicts: {"type": "network"|"usb", "ip": ..., "port": ..., "mac": ..., ...}
-        Also yields status events: {"type": "status", "message": ...}
+        Yields dicts with "type" field: "status", "network", "serial", "system".
         """
-        # Phase 1: USB printers (fast)
-        yield {"type": "status", "phase": "usb", "message": "Scanning USB printers..."}
-        for usb_printer in self.scan_usb():
-            yield usb_printer
+        # Phase 1: System printers (fast — OS-level devices)
+        yield {"type": "status", "phase": "system", "message": "Scanning system printers..."}
+        for printer in self.scan_system_printers():
+            yield printer
 
-        # Phase 2: Network printers (slow, streamed)
+        # Phase 2: Serial ports (fast)
+        yield {"type": "status", "phase": "serial", "message": "Scanning serial ports..."}
+        for printer in self.scan_serial():
+            yield printer
+
+        # Phase 3: Network printers (slow, streamed)
         if subnet is None:
             subnet = self._detect_subnet()
 
         if not subnet:
             yield {"type": "status", "phase": "network", "message": "Could not detect network subnet"}
+            yield {"type": "status", "phase": "done", "message": "Discovery complete"}
             return
 
         yield {"type": "status", "phase": "network", "message": f"Scanning {subnet}.0/24 on port {self.PRINTER_PORT}..."}
@@ -553,6 +537,7 @@ class PrinterDiscovery:
                         mac = self._get_real_mac(ip)
                         yield {
                             "type": "network",
+                            "connection_type": "network",
                             "ip": ip,
                             "port": self.PRINTER_PORT,
                             "mac": mac,
@@ -563,87 +548,103 @@ class PrinterDiscovery:
 
         yield {"type": "status", "phase": "done", "message": "Discovery complete"}
 
-    # ─── USB printer discovery ─────────────────────────────────
+    # ─── Serial port discovery ─────────────────────────────────
 
     @staticmethod
-    def scan_usb():
+    def scan_serial():
         """
-        Discover USB printers using pyusb.
-        Returns list of dicts with vendor_id, product_id, manufacturer, product, serial.
-        Falls back gracefully if pyusb/libusb is not available.
+        Discover serial-connected thermal printers (CH340, PL2303, FTDI, etc.).
+        Returns list of dicts with device path and metadata.
         """
         try:
-            import usb.core
-            import usb.util
+            from serial.tools import list_ports
         except ImportError:
-            logger.warning("pyusb not installed — USB printer discovery disabled")
+            logger.warning("pyserial not installed — serial discovery disabled")
             return []
 
+        THERMAL_KEYWORDS = {
+            "ch340", "pl2303", "cp210", "ftdi",
+            "thermal", "printer", "pos", "receipt",
+            "escpos", "xprinter",
+        }
+
         found = []
-        try:
-            devices = usb.core.find(find_all=True)
-            if devices is None:
-                return []
+        for port in list_ports.comports():
+            desc_lower = (port.description or "").lower()
+            hwid_lower = (port.hwid or "").lower()
+            mfr_lower = (port.manufacturer or "").lower()
 
-            for dev in devices:
-                vendor_id = dev.idVendor
-                product_id = dev.idProduct
-
-                # Check if it's a known printer vendor
-                is_known_vendor = vendor_id in KNOWN_PRINTER_VENDORS
-
-                # Check USB class: 7 = Printer
-                is_printer_class = False
-                try:
-                    for cfg in dev:
-                        for intf in cfg:
-                            if intf.bInterfaceClass == 7:
-                                is_printer_class = True
-                                break
-                        if is_printer_class:
-                            break
-                except Exception:
-                    pass
-
-                if not is_known_vendor and not is_printer_class:
-                    continue
-
-                # Read device strings
-                manufacturer = None
-                product = None
-                serial = None
-                try:
-                    manufacturer = usb.util.get_string(dev, dev.iManufacturer) if dev.iManufacturer else None
-                except Exception:
-                    pass
-                try:
-                    product = usb.util.get_string(dev, dev.iProduct) if dev.iProduct else None
-                except Exception:
-                    pass
-                try:
-                    serial = usb.util.get_string(dev, dev.iSerialNumber) if dev.iSerialNumber else None
-                except Exception:
-                    pass
-
-                vendor_name = KNOWN_PRINTER_VENDORS.get(vendor_id)
-
+            if any(kw in desc_lower or kw in hwid_lower or kw in mfr_lower
+                   for kw in THERMAL_KEYWORDS):
                 printer_info = {
-                    "type": "usb",
-                    "vendor_id": f"{vendor_id:#06x}",
-                    "product_id": f"{product_id:#06x}",
-                    "vendor_name": vendor_name or manufacturer or "Unknown",
-                    "product": product or "USB Printer",
-                    "serial": serial,
+                    "type": "serial",
+                    "connection_type": "serial",
+                    "device": port.device,
+                    "description": port.description,
+                    "manufacturer": port.manufacturer,
                     "responsive": True,
                 }
                 found.append(printer_info)
-                logger.info(
-                    f"  Found USB printer: {printer_info['vendor_name']} "
-                    f"{printer_info['product']} ({vendor_id:#06x}:{product_id:#06x})"
-                )
+                logger.info(f"  Found serial printer: {port.device} ({port.description})")
 
-        except Exception as e:
-            logger.warning(f"USB discovery error: {e}")
+        return found
+
+    # ─── System printer discovery ──────────────────────────────
+
+    @staticmethod
+    def scan_system_printers():
+        """
+        Discover OS-level printer devices.
+        Windows: printers from the Windows spooler (Win32Raw compatible).
+        Linux: /dev/usb/lp* devices (File compatible).
+        """
+        found = []
+
+        if _IS_WINDOWS:
+            try:
+                import win32print
+                printers = win32print.EnumPrinters(
+                    win32print.PRINTER_ENUM_LOCAL, None, 2
+                )
+                for printer in printers:
+                    name = printer["pPrinterName"]
+                    port = printer.get("pPortName", "")
+                    # Include printers on USB ports or with known POS-related names
+                    is_usb = port.upper().startswith("USB")
+                    name_lower = name.lower()
+                    is_pos = any(kw in name_lower for kw in (
+                        "pos", "thermal", "receipt", "generic", "xprinter",
+                        "epson", "star", "citizen", "bixolon", "sewoo",
+                        "xp-", "x85", "58mm", "80mm",
+                    ))
+                    if is_usb or is_pos:
+                        printer_info = {
+                            "type": "system",
+                            "connection_type": "win32raw",
+                            "device": name,
+                            "port": port,
+                            "description": printer.get("pDriverName", ""),
+                            "responsive": True,
+                        }
+                        found.append(printer_info)
+                        logger.info(f"  Found Windows printer: {name} on {port}")
+            except ImportError:
+                logger.debug("win32print not available — Windows printer discovery disabled")
+            except Exception as e:
+                logger.warning(f"Windows printer discovery error: {e}")
+        elif platform.system() == "Linux":
+            # Linux: /dev/usb/lp* devices created by usblp kernel module
+            lp_devices = sorted(glob_mod.glob("/dev/usb/lp*"))
+            for dev_path in lp_devices:
+                printer_info = {
+                    "type": "system",
+                    "connection_type": "file",
+                    "device": dev_path,
+                    "description": f"USB printer ({dev_path})",
+                    "responsive": True,
+                }
+                found.append(printer_info)
+                logger.info(f"  Found USB printer device: {dev_path}")
 
         return found
 
@@ -653,13 +654,13 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     d = PrinterDiscovery()
 
-    print("=== USB Printers ===")
-    usb_printers = d.scan_usb()
-    if usb_printers:
-        for p in usb_printers:
-            print(f"  {p['vendor_name']} {p['product']} ({p['vendor_id']}:{p['product_id']})")
-    else:
-        print("  No USB printers found.")
+    print("=== System Printers ===")
+    for p in d.scan_system_printers():
+        print(f"  [{p['connection_type']}] {p['device']} — {p.get('description', '')}")
+
+    print("\n=== Serial Printers ===")
+    for p in d.scan_serial():
+        print(f"  {p['device']} — {p.get('description', '')}")
 
     print("\n=== Network Printers ===")
     printers = d.scan()

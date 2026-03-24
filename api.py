@@ -16,10 +16,28 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
+import platform as _platform
+
 from dotenv import load_dotenv
 from escpos.exceptions import Error as EscposError
 from escpos.printer import Network
 from fastapi import FastAPI, HTTPException, Query, Request, UploadFile
+
+# Optional printer transports (platform-dependent)
+try:
+    from escpos.printer import Win32Raw
+except ImportError:
+    Win32Raw = None
+
+try:
+    from escpos.printer import File as FilePrinter
+except ImportError:
+    FilePrinter = None
+
+try:
+    from escpos.printer import Serial as SerialPrinter
+except ImportError:
+    SerialPrinter = None
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -70,10 +88,17 @@ def load_registry():
                 data = json.load(f)
             entries = sorted(data.values(), key=lambda x: x.get("name", ""))
             for i, info in enumerate(entries, start=1):
+                host = info.get("last_ip", info.get("host", ""))
+                # Skip old pyusb-based entries
+                if isinstance(host, str) and host.startswith("usb:"):
+                    logging.warning(f"Skipping legacy USB entry: {host} (re-discover to use new transport)")
+                    continue
                 PRINTERS[f"printer_{i}"] = {
-                    "host": info.get("last_ip", info.get("host", "")),
+                    "host": host,
                     "port": info.get("port", 9100),
                     "mac": info.get("mac", "unknown"),
+                    "connection_type": info.get("connection_type", "network"),
+                    "baudrate": info.get("baudrate", 9600),
                 }
             logging.info(f"Loaded {len(PRINTERS)} printer(s) from registry")
         except Exception as e:
@@ -86,9 +111,11 @@ def save_registry():
     for name, config in PRINTERS.items():
         data[name] = {
             "name": name,
+            "connection_type": config.get("connection_type", "network"),
             "last_ip": config["host"],
             "port": config["port"],
             "mac": config.get("mac", "unknown"),
+            "baudrate": config.get("baudrate", 9600),
             "last_seen": datetime.now().isoformat(),
         }
     try:
@@ -98,26 +125,77 @@ def save_registry():
         logging.warning(f"Could not save registry: {e}")
 
 
-# ─── Connection pool ─────────────────────────────────────────
-def _init_printer(p: Network):
-    p._raw(b"\x1b\x40")      # ESC @ -- hardware reset
-    p._raw(b"\x1b\x45\x00")  # ESC E 0 -- emphasis OFF
-    p._raw(b"\x1b\x47\x00")  # ESC G 0 -- double-strike OFF
+# ─── Connection management ───────────────────────────────────
+# Combined init bytes — single write instead of three
+_INIT_BYTES = (
+    b"\x1b\x40"      # ESC @ -- hardware reset
+    b"\x1b\x45\x00"  # ESC E 0 -- emphasis OFF
+    b"\x1b\x47\x00"  # ESC G 0 -- double-strike OFF
+)
+
+def _init_printer(p):
+    p._raw(_INIT_BYTES)
+
+
+def _create_printer(config):
+    """Create a new printer instance based on connection_type."""
+    conn_type = config.get("connection_type", "network")
+
+    if conn_type == "network":
+        return Network(config["host"], port=config["port"], profile="TM-T88III")
+    elif conn_type == "win32raw":
+        if Win32Raw is None:
+            raise RuntimeError("Win32Raw not available (pywin32 not installed or not on Windows)")
+        return Win32Raw(config["host"], profile="TM-T88III")
+    elif conn_type == "file":
+        if FilePrinter is None:
+            raise RuntimeError("File printer not available")
+        return FilePrinter(config["host"], profile="TM-T88III")
+    elif conn_type == "serial":
+        if SerialPrinter is None:
+            raise RuntimeError("Serial not available (pyserial not installed)")
+        return SerialPrinter(
+            config["host"],
+            baudrate=config.get("baudrate", 9600),
+            profile="TM-T88III",
+        )
+    else:
+        raise RuntimeError(f"Unknown connection_type: {conn_type}")
+
+
+def _is_job_based(printer_name: str) -> bool:
+    """Win32Raw needs open/close per job — data is only sent on close()."""
+    config = PRINTERS.get(printer_name, {})
+    return config.get("connection_type") == "win32raw"
 
 
 def _connect_printer(printer_name: str):
-    """Get or create a printer connection (Network or Usb). Thread-safe."""
+    """Get or create a printer connection. Thread-safe.
+    For Win32Raw: creates a fresh connection each time (job-based).
+    For others: reuses pooled connections.
+    """
     if printer_name not in PRINTERS:
         raise RuntimeError(
             f"Unknown printer: {printer_name}. Available: {list(PRINTERS.keys())}"
         )
 
+    config = PRINTERS[printer_name]
+
+    # Win32Raw: always create fresh — each open/close is one print job
+    if _is_job_based(printer_name):
+        try:
+            printer = _create_printer(config)
+            printer.open()
+            return printer
+        except Exception as e:
+            raise RuntimeError(f"Cannot connect to {printer_name}: {e}")
+
+    # All other types: use connection pool
     with _pool_lock:
         if printer_name in _printer_connections:
             conn = _printer_connections[printer_name]
             try:
-                if hasattr(conn, 'device') and conn.device is not None:
-                    # Network printer: validate socket
+                if conn.device is not None:
                     if hasattr(conn.device, 'getpeername'):
                         conn.device.getpeername()
                     return conn
@@ -129,25 +207,25 @@ def _connect_printer(printer_name: str):
                 pass
             _printer_connections.pop(printer_name, None)
 
-        config = PRINTERS[printer_name]
         try:
-            if config.get("usb"):
-                from escpos.printer import Usb
-                vendor_id = int(config["vendor_id"], 16)
-                product_id = int(config["product_id"], 16)
-                printer = Usb(vendor_id, product_id, profile="TM-T88III")
-            else:
-                printer = Network(config["host"], port=config["port"], profile="TM-T88III")
+            printer = _create_printer(config)
             _printer_connections[printer_name] = printer
             return printer
         except Exception as e:
             _printer_connections.pop(printer_name, None)
-            raise RuntimeError(
-                f"Cannot connect to {printer_name}: {e}"
-            )
+            raise RuntimeError(f"Cannot connect to {printer_name}: {e}")
 
 
-def get_printer(printer_name: str) -> Network:
+def _close_if_job_based(printer_name: str, printer):
+    """For Win32Raw, close the connection to flush data to the printer."""
+    if _is_job_based(printer_name):
+        try:
+            printer.close()
+        except Exception:
+            pass
+
+
+def get_printer(printer_name: str):
     try:
         return _connect_printer(printer_name)
     except RuntimeError as e:
@@ -373,6 +451,7 @@ def _exec_text(printer_name, params):
             p.cut(feed=False)
         elif lines_after > 0:
             p.text("\n" * lines_after)
+        _close_if_job_based(printer_name, p)
     except Exception:
         evict_printer_connection(printer_name)
         raise
@@ -454,6 +533,7 @@ def _exec_receipt(printer_name, params):
             p.cut(feed=False)
         elif lines_after > 0:
             p.text("\n" * lines_after)
+        _close_if_job_based(printer_name, p)
     except Exception:
         evict_printer_connection(printer_name)
         raise
@@ -477,6 +557,7 @@ def _exec_qr(printer_name, params):
             p.cut(feed=False)
         elif lines_after > 0:
             p.text("\n" * lines_after)
+        _close_if_job_based(printer_name, p)
     except Exception:
         evict_printer_connection(printer_name)
         raise
@@ -507,6 +588,7 @@ def _exec_barcode(printer_name, params):
             p.cut(feed=False)
         elif lines_after > 0:
             p.text("\n" * lines_after)
+        _close_if_job_based(printer_name, p)
     except Exception:
         evict_printer_connection(printer_name)
         raise
@@ -516,6 +598,7 @@ def _exec_raw(printer_name, params):
     p = _connect_printer(printer_name)
     try:
         p._raw(params["data"])
+        _close_if_job_based(printer_name, p)
     except Exception:
         evict_printer_connection(printer_name)
         raise
@@ -541,7 +624,6 @@ class ReceiptItem(BaseModel):
 
 class PrintRequest(BaseModel):
     type: str
-    printer: str = "printer_1"
     cut: bool = True
     lines_after: int = 0
 
@@ -590,20 +672,155 @@ def health():
     }
 
 
+@app.post("/api/printers/register-usb")
+def register_usb_printers():
+    """
+    Windows only: auto-detect USB printer ports and create printer queues
+    with the 'Generic / Text Only' driver. No manual setup needed.
+    """
+    if _platform.system() != "Windows":
+        return {
+            "success": True,
+            "message": "Not needed on Linux — USB printers are accessed via /dev/usb/lp*",
+            "registered": 0,
+        }
+
+    try:
+        import subprocess
+        # Find USB ports without a printer queue and auto-register them
+        ps_script = r"""
+$results = @()
+$usbPorts = Get-PrinterPort | Where-Object { $_.Name -like 'USB*' }
+$existingPrinters = Get-Printer
+
+# Try these driver names in order — different Windows versions have different names
+$driverCandidates = @(
+    'Generic / Text Only',
+    'Generic/Text Only',
+    'MS Publisher Imagesetter'
+)
+
+# Find a working driver
+$driverName = $null
+$installedDrivers = Get-PrinterDriver -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
+
+foreach ($candidate in $driverCandidates) {
+    if ($installedDrivers -contains $candidate) {
+        $driverName = $candidate
+        break
+    }
+}
+
+# If no known driver found, install 'Generic / Text Only'
+if (-not $driverName) {
+    # Step 1: Register ntprint.inf via pnputil first
+    $infPath = Join-Path $env:SystemRoot 'INF\ntprint.inf'
+    if (Test-Path $infPath) {
+        try { pnputil /add-driver $infPath /install 2>&1 | Out-Null } catch {}
+    }
+    # Step 2: Now Add-PrinterDriver can find it
+    try {
+        Add-PrinterDriver -Name 'Generic / Text Only' -ErrorAction Stop
+        $driverName = 'Generic / Text Only'
+    } catch {
+        try {
+            Add-PrinterDriver -Name 'Generic / Text Only' -InfPath $infPath -ErrorAction Stop
+            $driverName = 'Generic / Text Only'
+        } catch {}
+    }
+}
+
+if (-not $driverName) {
+    # Last resort: use any available driver
+    $anyDriver = $installedDrivers | Select-Object -First 1
+    if ($anyDriver) {
+        $driverName = $anyDriver
+    } else {
+        @{ port = 'N/A'; status = 'failed'; error = 'No printer drivers available. Run: Add-PrinterDriver -Name "Generic / Text Only"' } | ConvertTo-Json -Compress
+        exit 0
+    }
+}
+
+foreach ($port in $usbPorts) {
+    $portName = $port.Name
+    $alreadyUsed = $existingPrinters | Where-Object { $_.PortName -eq $portName }
+
+    if ($alreadyUsed) {
+        $results += @{ port = $portName; status = 'exists'; name = $alreadyUsed.Name; driver = $alreadyUsed.DriverName }
+    } else {
+        $printerName = "POS-Printer-$portName"
+        try {
+            Add-Printer -Name $printerName -DriverName $driverName -PortName $portName -ErrorAction Stop
+            $results += @{ port = $portName; status = 'created'; name = $printerName; driver = $driverName }
+        } catch {
+            $results += @{ port = $portName; status = 'failed'; error = $_.ToString() }
+        }
+    }
+}
+
+$results | ConvertTo-Json -Compress
+"""
+        result = subprocess.run(
+            ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
+            capture_output=True, text=True, timeout=30,
+        )
+
+        if result.returncode != 0:
+            return {
+                "success": False,
+                "error": result.stderr.strip() or "PowerShell command failed",
+            }
+
+        import json as _json
+        output = result.stdout.strip()
+        if not output or output == "":
+            return {"success": True, "registered": 0, "message": "No USB printer ports found", "printers": []}
+
+        printers = _json.loads(output)
+        # PowerShell returns a single object (not array) if only one result
+        if isinstance(printers, dict):
+            printers = [printers]
+
+        created = [p for p in printers if p.get("status") == "created"]
+        return {
+            "success": True,
+            "registered": len(created),
+            "printers": printers,
+        }
+
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 @app.get("/api/printers")
 def get_printers():
     """
     SSE endpoint that streams printer discovery results.
 
     Events:
-      - event: status    → {"phase": "usb"|"network"|"done", "message": "..."}
-      - event: printer   → {"name": "printer_1", "host": "...", ...}
+      - event: status    → {"phase": "system"|"serial"|"network"|"done", "message": "..."}
+      - event: printer   → {"name": "printer_1", "connection_type": "...", ...}
       - event: complete  → {"printers": {...}, "total": N}
     """
+    def _next_printer_name():
+        existing_nums = []
+        for n in PRINTERS:
+            if n.startswith("printer_"):
+                try:
+                    existing_nums.append(int(n.split("_")[1]))
+                except (ValueError, IndexError):
+                    pass
+        return f"printer_{max(existing_nums, default=0) + 1}"
+
+    def _find_existing_by_host(host_value):
+        for n, c in PRINTERS.items():
+            if c["host"] == host_value:
+                return n
+        return None
+
     def event_stream():
         discovery = PrinterDiscovery()
-        scan_ip_set = set()
-        usb_devices = []
+        discovered_hosts = set()
 
         for event in discovery.scan_streaming():
             if event["type"] == "status":
@@ -611,59 +828,50 @@ def get_printers():
 
             elif event["type"] == "network":
                 ip = event["ip"]
-                scan_ip_set.add(ip)
+                discovered_hosts.add(ip)
                 found = {ip: {
                     "port": event["port"],
                     "mac": event.get("mac"),
                     "responsive": True,
                 }}
                 _merge_discovered_printers(found)
-                # Find the name that was assigned
-                name = None
-                for n, c in PRINTERS.items():
-                    if c["host"] == ip:
-                        name = n
-                        break
+                name = _find_existing_by_host(ip)
                 if name:
-                    yield f"event: printer\ndata: {json.dumps({'name': name, 'type': 'network', 'host': ip, 'port': event['port'], 'mac': event.get('mac', 'unknown'), 'connected': True})}\n\n"
+                    PRINTERS[name]["connection_type"] = "network"
+                    yield f"event: printer\ndata: {json.dumps({'name': name, 'connection_type': 'network', 'host': ip, 'port': event['port'], 'mac': event.get('mac', 'unknown'), 'connected': True})}\n\n"
 
-            elif event["type"] == "usb":
-                usb_devices.append(event)
-                # Assign a name for USB printers
-                existing_nums = []
-                for n in PRINTERS:
-                    if n.startswith("printer_"):
-                        try:
-                            existing_nums.append(int(n.split("_")[1]))
-                        except (ValueError, IndexError):
-                            pass
-                next_num = max(existing_nums, default=0) + 1
-                name = f"printer_{next_num}"
-                PRINTERS[name] = {
-                    "host": f"usb:{event['vendor_id']}:{event['product_id']}",
-                    "port": 0,
-                    "mac": event.get("serial") or "usb",
-                    "usb": True,
-                    "vendor_id": event["vendor_id"],
-                    "product_id": event["product_id"],
-                    "vendor_name": event.get("vendor_name", "Unknown"),
-                    "product": event.get("product", "USB Printer"),
-                }
-                yield f"event: printer\ndata: {json.dumps({'name': name, 'type': 'usb', 'vendor_id': event['vendor_id'], 'product_id': event['product_id'], 'vendor_name': event.get('vendor_name', 'Unknown'), 'product': event.get('product', 'USB Printer'), 'connected': True})}\n\n"
+            elif event["type"] in ("system", "serial"):
+                device = event["device"]
+                conn_type = event["connection_type"]
+                discovered_hosts.add(device)
+
+                # Check if already registered
+                name = _find_existing_by_host(device)
+                if not name:
+                    name = _next_printer_name()
+                    PRINTERS[name] = {
+                        "host": device,
+                        "port": event.get("port", 0),
+                        "mac": "local",
+                        "connection_type": conn_type,
+                    }
+
+                PRINTERS[name]["connection_type"] = conn_type
+                yield f"event: printer\ndata: {json.dumps({'name': name, 'connection_type': conn_type, 'device': device, 'description': event.get('description', ''), 'connected': True})}\n\n"
 
         save_registry()
 
         # Final complete event with all printers
         result = {}
         for name, config in PRINTERS.items():
-            is_usb = config.get("usb", False)
-            connected = is_usb or config["host"] in scan_ip_set
+            conn_type = config.get("connection_type", "network")
+            connected = config["host"] in discovered_hosts
             result[name] = {
                 "host": config["host"],
                 "port": config["port"],
                 "mac": config.get("mac", "unknown"),
+                "connection_type": conn_type,
                 "connected": connected,
-                "type": "usb" if is_usb else "network",
             }
 
         yield f"event: complete\ndata: {json.dumps({'printers': result, 'total': len(result)})}\n\n"
@@ -671,9 +879,9 @@ def get_printers():
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
-@app.post("/api/print")
-async def api_print(req: PrintRequest):
-    _validate_printer(req.printer)
+@app.post("/api/printers/{name}/print")
+async def api_print(name: str, req: PrintRequest):
+    _validate_printer(name)
 
     print_type = req.type
     if print_type not in PRINT_HANDLERS:
@@ -682,12 +890,10 @@ async def api_print(req: PrintRequest):
             detail=f"Unknown print type: {print_type}. Available: {list(PRINT_HANDLERS.keys())}",
         )
 
-    # Build params dict from request
     params = req.model_dump()
-    printer_name = params.pop("printer")
+    params.pop("printer", None)
     params.pop("type")
 
-    # For raw type, decode the data upfront
     if print_type == "raw":
         if not req.base64 and not req.hex:
             raise HTTPException(status_code=400, detail="Provide 'base64' or 'hex' field")
@@ -696,31 +902,27 @@ async def api_print(req: PrintRequest):
         else:
             params["data"] = binascii.unhexlify(req.hex.strip())
 
-    # For text type, require text field
     if print_type == "text" and not req.text:
         raise HTTPException(status_code=400, detail="'text' field is required for text type")
 
-    # For qr type, require text field
     if print_type == "qr" and not req.text:
         raise HTTPException(status_code=400, detail="'text' field is required for qr type")
 
-    # For barcode type, require code field
     if print_type == "barcode" and not req.code:
         raise HTTPException(status_code=400, detail="'code' field is required for barcode type")
 
-    # For receipt, convert items to dicts
     if print_type == "receipt":
         params["items"] = [item.model_dump() for item in req.items]
 
     handler = PRINT_HANDLERS[print_type]
     _params = params.copy()
-    _printer = printer_name
+    _printer = name
 
     def execute():
         handler(_printer, _params)
 
     job_id = print_queue.submit(
-        printer_name,
+        name,
         print_type,
         execute,
         {k: v for k, v in params.items() if k not in ("data", "execute_fn")},
@@ -731,85 +933,149 @@ async def api_print(req: PrintRequest):
             "success": True,
             "job_id": job_id,
             "queued": True,
-            "message": f"{print_type} print job queued for {printer_name}",
-            "printer": printer_name,
+            "message": f"{print_type} print job queued for {name}",
+            "printer": name,
         },
     )
 
 
-@app.post("/api/actions")
-async def api_actions(
-    type: str = Query(..., description="Action type: beep, cut, openCash"),
-    printer: str = Query("printer_1"),
+# ─── Actions ─────────────────────────────────────────────────
+# Actions are routed through the print queue so they:
+# 1. Don't block the event loop (queue workers run in threads)
+# 2. Are serialized per-printer (no spooler conflicts on Win32Raw)
+
+def _action_beep(printer_name, params):
+    logging.info(f"[ACTION] beep: connecting to {printer_name}")
+    p = _connect_printer(printer_name)
+    logging.info(f"[ACTION] beep: connected, sending init")
+    try:
+        _init_printer(p)
+        c = max(1, min(9, params.get("count", 1)))
+        d = max(1, min(9, params.get("duration", 1)))
+        logging.info(f"[ACTION] beep: sending buzzer command (count={c}, duration={d})")
+        try:
+            p.buzzer(times=c, duration=d)
+        except Exception:
+            p._raw(b"\x1b\x42" + bytes([c]) + bytes([d]))
+        logging.info(f"[ACTION] beep: closing connection")
+        _close_if_job_based(printer_name, p)
+        logging.info(f"[ACTION] beep: done")
+    except Exception:
+        logging.error(f"[ACTION] beep: failed on {printer_name}", exc_info=True)
+        evict_printer_connection(printer_name)
+        raise
+
+
+def _action_cut(printer_name, params):
+    logging.info(f"[ACTION] cut: connecting to {printer_name}")
+    p = _connect_printer(printer_name)
+    logging.info(f"[ACTION] cut: connected, sending init")
+    try:
+        _init_printer(p)
+        cut_mode = "PART" if params.get("mode", "partial").lower() in ("partial", "part") else "FULL"
+        feed_lines = params.get("lines_before", 0)
+        if feed_lines <= 0:
+            feed_lines = MIN_FEED_BEFORE_CUT
+        logging.info(f"[ACTION] cut: sending cut command (mode={cut_mode}, feed={feed_lines})")
+        p.text("\n" * feed_lines)
+        p.cut(mode=cut_mode, feed=False)
+        logging.info(f"[ACTION] cut: closing connection")
+        _close_if_job_based(printer_name, p)
+        logging.info(f"[ACTION] cut: done")
+    except Exception:
+        logging.error(f"[ACTION] cut: failed on {printer_name}", exc_info=True)
+        evict_printer_connection(printer_name)
+        raise
+
+
+def _action_open_cash(printer_name, params):
+    logging.info(f"[ACTION] openCash: connecting to {printer_name}")
+    p = _connect_printer(printer_name)
+    logging.info(f"[ACTION] openCash: connected, sending init")
+    try:
+        _init_printer(p)
+        pin_val = 0 if params.get("pin", 0) == 0 else 1
+        t1_val = max(0, min(255, params.get("t1", 100)))
+        t2_val = max(0, min(255, params.get("t2", 100)))
+        logging.info(f"[ACTION] openCash: sending pulse (pin={pin_val}, t1={t1_val}, t2={t2_val})")
+        p._raw(b"\x1b\x70" + bytes([pin_val, t1_val, t2_val]))
+        logging.info(f"[ACTION] openCash: closing connection")
+        _close_if_job_based(printer_name, p)
+        logging.info(f"[ACTION] openCash: done")
+    except Exception:
+        logging.error(f"[ACTION] openCash: failed on {printer_name}", exc_info=True)
+        evict_printer_connection(printer_name)
+        raise
+
+
+@app.post("/api/printers/{name}/actions/beep")
+async def action_beep(
+    name: str,
     count: int = Query(1),
     duration: int = Query(1),
+):
+    _validate_printer(name)
+    params = {"count": count, "duration": duration}
+
+    def execute():
+        _action_beep(name, params)
+
+    job_id = print_queue.submit(name, "beep", execute, params)
+    return JSONResponse(
+        status_code=202,
+        content={"success": True, "job_id": job_id, "queued": True, "message": f"Beep queued for {name}", "printer": name},
+    )
+
+
+@app.post("/api/printers/{name}/actions/cut")
+async def action_cut(
+    name: str,
     lines_before: int = Query(0),
     mode: str = Query("partial"),
+):
+    _validate_printer(name)
+    params = {"lines_before": lines_before, "mode": mode}
+
+    def execute():
+        _action_cut(name, params)
+
+    job_id = print_queue.submit(name, "cut", execute, params)
+    return JSONResponse(
+        status_code=202,
+        content={"success": True, "job_id": job_id, "queued": True, "message": f"Cut queued for {name}", "printer": name},
+    )
+
+
+@app.post("/api/printers/{name}/actions/openCash")
+async def action_open_cash(
+    name: str,
     pin: int = Query(0),
     t1: int = Query(100),
     t2: int = Query(100),
 ):
-    action_type = type
-    _validate_printer(printer)
+    _validate_printer(name)
+    params = {"pin": pin, "t1": t1, "t2": t2}
 
-    if action_type == "beep":
-        try:
-            p = get_printer(printer)
-            _init_printer(p)
-            c = max(1, min(9, count))
-            d = max(1, min(9, duration))
-            try:
-                p.buzzer(times=c, duration=d)
-            except Exception:
-                p._raw(b"\x1b\x42" + bytes([c]) + bytes([d]))
-            return {"success": True, "message": f"Beep sent to {printer}", "printer": printer}
-        except EscposError as e:
-            evict_printer_connection(printer)
-            raise HTTPException(status_code=500, detail=f"Printer error: {str(e)}")
+    def execute():
+        _action_open_cash(name, params)
 
-    elif action_type == "cut":
-        try:
-            p = get_printer(printer)
-            _init_printer(p)
-            cut_mode = "PART" if mode.lower() in ("partial", "part") else "FULL"
-            feed_lines = lines_before if lines_before > 0 else MIN_FEED_BEFORE_CUT
-            p.text("\n" * feed_lines)
-            p.cut(mode=cut_mode, feed=False)
-            return {"success": True, "message": f"Paper cut on {printer}", "printer": printer}
-        except EscposError as e:
-            evict_printer_connection(printer)
-            raise HTTPException(status_code=500, detail=f"Printer error: {str(e)}")
-
-    elif action_type == "openCash":
-        try:
-            p = get_printer(printer)
-            _init_printer(p)
-            pin_val = 0 if pin == 0 else 1
-            t1_val = max(0, min(255, t1))
-            t2_val = max(0, min(255, t2))
-            p._raw(b"\x1b\x70" + bytes([pin_val, t1_val, t2_val]))
-            return {"success": True, "message": f"Cash drawer pulse sent to {printer}", "printer": printer}
-        except EscposError as e:
-            evict_printer_connection(printer)
-            raise HTTPException(status_code=500, detail=f"Printer error: {str(e)}")
-
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown action type: {action_type}. Available: beep, cut, openCash, printImage",
-        )
+    job_id = print_queue.submit(name, "openCash", execute, params)
+    return JSONResponse(
+        status_code=202,
+        content={"success": True, "job_id": job_id, "queued": True, "message": f"Cash drawer queued for {name}", "printer": name},
+    )
 
 
-@app.post("/api/actions/printImage")
-async def api_action_print_image(
+@app.post("/api/printers/{name}/actions/printImage")
+async def action_print_image(
+    name: str,
     image: UploadFile,
-    printer: str = Query("printer_1"),
     center: bool = Query(True),
     paper_width: int = Query(510),
     cut: bool = Query(True),
     lines_after: int = Query(0),
 ):
-    _validate_printer(printer)
+    _validate_printer(name)
 
     if not image.filename:
         raise HTTPException(status_code=400, detail="No image provided")
@@ -831,7 +1097,7 @@ async def api_action_print_image(
 
     optimized_path = _prepare_image_for_thermal(filepath, paper_width)
 
-    _printer = printer
+    _printer = name
     _filepath = optimized_path
     _center = center
     _cut = cut
@@ -853,6 +1119,7 @@ async def api_action_print_image(
                     p.cut(feed=False)
                 elif _lines_after > 0:
                     p.text("\n" * _lines_after)
+                _close_if_job_based(_printer, p)
             except Exception:
                 evict_printer_connection(_printer)
                 raise
@@ -864,7 +1131,7 @@ async def api_action_print_image(
                     pass
 
     job_id = print_queue.submit(
-        printer,
+        name,
         "image",
         execute,
         {"filename": filename, "center": center, "cut": cut},
@@ -875,8 +1142,8 @@ async def api_action_print_image(
             "success": True,
             "job_id": job_id,
             "queued": True,
-            "message": f"Image print job queued for {printer}",
-            "printer": printer,
+            "message": f"Image print job queued for {name}",
+            "printer": name,
             "filename": filename,
         },
     )
@@ -884,27 +1151,35 @@ async def api_action_print_image(
 
 # ─── Job Queue Management ────────────────────────────────────
 
-@app.get("/api/jobs")
-def list_jobs(printer: str = Query(None)):
-    jobs = print_queue.get_queue(printer_name=printer)
+@app.get("/api/printers/{name}/jobs")
+def list_jobs(name: str):
+    _validate_printer(name)
+    jobs = print_queue.get_queue(printer_name=name)
     return {"success": True, "jobs": jobs, "count": len(jobs)}
 
 
-@app.get("/api/jobs/{job_id}")
-def get_job(job_id: str):
+@app.get("/api/printers/{name}/jobs/{job_id}")
+def get_job(name: str, job_id: str):
+    _validate_printer(name)
     job = print_queue.get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    if job.get("printer") != name:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found on {name}")
     return {"success": True, "job": job}
 
 
-@app.delete("/api/jobs/{job_id}")
-def cancel_job(job_id: str):
+@app.delete("/api/printers/{name}/jobs/{job_id}")
+def cancel_job(name: str, job_id: str):
+    _validate_printer(name)
+    job = print_queue.get_job(job_id)
+    if job is None or job.get("printer") != name:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found on {name}")
     cancelled = print_queue.cancel_job(job_id)
     if not cancelled:
         raise HTTPException(
             status_code=400,
-            detail=f"Job {job_id} cannot be cancelled (not pending or not found)",
+            detail=f"Job {job_id} cannot be cancelled (not pending)",
         )
     return {"success": True, "message": f"Job {job_id} cancelled"}
 
@@ -965,4 +1240,11 @@ if __name__ == "__main__":
     print(f"  Actions:   POST /api/actions?type=beep|cut|openCash|printImage")
     print(f"  Jobs:      GET  /api/jobs")
 
-    uvicorn.run(app, host=SERVER_HOST, port=SERVER_PORT)
+    uvicorn.run(
+        app,
+        host=SERVER_HOST,
+        port=SERVER_PORT,
+        timeout_keep_alive=30,
+        # h11 is pure-Python HTTP parser — more reliable on Windows than httptools
+        http="h11",
+    )
