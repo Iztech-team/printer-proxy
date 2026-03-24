@@ -53,13 +53,44 @@ foreach ($cmd in @("python", "python3", "py")) {
 if (-not $PythonCmd) {
     Write-Info "Python not found. Attempting auto-install..."
 
-    # Try winget (available on Windows 11 and recent Windows 10)
-    $wingetAvailable = Get-Command winget -ErrorAction SilentlyContinue
-    if ($wingetAvailable) {
-        Write-Info "Installing Python via winget..."
-        winget install Python.Python.3.12 --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
+    $installed = $false
 
-        # Refresh PATH
+    # Method 1: Try winget (Windows 11 and recent Windows 10)
+    $wingetAvailable = Get-Command winget -ErrorAction SilentlyContinue
+    if ($wingetAvailable -and -not $installed) {
+        Write-Info "Installing Python via winget..."
+        try {
+            winget install Python.Python.3.12 --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
+            $installed = $true
+            Write-Info "Python installed via winget"
+        } catch {
+            Write-Warn "winget install failed: $_"
+        }
+    }
+
+    # Method 2: Download installer directly from python.org
+    if (-not $installed) {
+        Write-Info "Downloading Python installer from python.org..."
+        $installerUrl = "https://www.python.org/ftp/python/3.12.8/python-3.12.8-amd64.exe"
+        $installerPath = Join-Path $env:TEMP "python-installer.exe"
+
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
+            Write-Info "Running Python installer (silent)..."
+            Start-Process -FilePath $installerPath -ArgumentList `
+                "/quiet", "InstallAllUsers=1", "PrependPath=1", "Include_pip=1" `
+                -Wait -NoNewWindow
+            Remove-Item $installerPath -ErrorAction SilentlyContinue
+            $installed = $true
+            Write-Info "Python installed from python.org"
+        } catch {
+            Write-Warn "Download/install failed: $_"
+        }
+    }
+
+    if ($installed) {
+        # Refresh PATH after install
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
 
         foreach ($cmd in @("python", "python3", "py")) {
@@ -67,7 +98,7 @@ if (-not $PythonCmd) {
                 $ver = & $cmd --version 2>&1
                 if ($ver -match "Python 3\.\d+") {
                     $PythonCmd = $cmd
-                    Write-Info "Installed: $ver"
+                    Write-Info "Found: $ver"
                     break
                 }
             } catch { }
