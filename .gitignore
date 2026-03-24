@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+uploads/
+server.log
+registry.json
