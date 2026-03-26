@@ -1,5 +1,6 @@
 import os
 
+from settings.config import MIN_FEED_BEFORE_CUT
 from services.connection import connect_printer, close_if_job_based, evict_printer_connection, init_printer
 from services.printer import feed_and_cut
 

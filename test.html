@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Baraka Printer Proxy - Test Panel</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0f172a;color:#e2e8f0;padding:20px}
+h1{font-size:1.4rem;margin-bottom:20px;color:#38bdf8}
+h2{font-size:1rem;margin-bottom:10px;color:#94a3b8;border-bottom:1px solid #1e293b;padding-bottom:6px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:1200px;margin:0 auto}
+.card{background:#1e293b;border-radius:8px;padding:16px;border:1px solid #334155}
+.full{grid-column:1/-1}
+button{background:#2563eb;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:.85rem;margin:4px}
+button:hover{background:#1d4ed8}
+button.green{background:#16a34a}button.green:hover{background:#15803d}
+button.red{background:#dc2626}button.red:hover{background:#b91c1c}
+button.amber{background:#d97706}button.amber:hover{background:#b45309}
+button.sm{padding:4px 10px;font-size:.75rem}
+input,select,textarea{background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:6px 10px;border-radius:4px;font-size:.85rem;width:100%}
+textarea{resize:vertical;min-height:60px;font-family:monospace}
+label{font-size:.75rem;color:#64748b;display:block;margin:6px 0 2px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.log{background:#020617;border:1px solid #1e293b;border-radius:4px;padding:10px;font-family:monospace;font-size:.75rem;max-height:300px;overflow-y:auto;white-space:pre-wrap;margin-top:8px}
+.printer-list{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.printer-tag{background:#334155;padding:4px 10px;border-radius:12px;font-size:.8rem;cursor:pointer;border:2px solid transparent}
+.printer-tag.active{border-color:#38bdf8;background:#1e3a5f}
+.printer-tag.offline{opacity:.4}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.dot.on{background:#22c55e}.dot.off{background:#ef4444}
+.status{font-size:.75rem;color:#64748b;margin-top:4px}
+#health-dot{font-size:1.2rem}
+</style>
+</head>
+<body>
+
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;max-width:1200px;margin:0 auto 20px">
+<h1>Baraka Printer Proxy</h1>
+<span id="health-dot"></span>
+<span id="health-status" style="font-size:.8rem;color:#64748b"></span>
+<div style="flex:1"></div>
+<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:.8rem">
+API: <input id="api-url" value="http://localhost:3006" style="width:200px">
+</label>
+</div>
+
+<div class="grid">
+
+<!-- Printers -->
+<div class="card full">
+<h2>Printers</h2>
+<div class="row">
+<button class="green" onclick="discoverPrinters()">Discover Printers</button>
+<button onclick="registerUsb()">Register USB (Windows)</button>
+<button class="sm" onclick="checkSelected()">Check Selected</button>
+</div>
+<div class="printer-list" id="printer-list"></div>
+<div class="log" id="discover-log" style="display:none"></div>
+</div>
+
+<!-- Print Text -->
+<div class="card">
+<h2>Print Text</h2>
+<label>Text</label>
+<textarea id="print-text" placeholder="Hello World"></textarea>
+<div class="row" style="margin-top:8px">
+<label style="margin:0"><input type="checkbox" id="print-bold"> Bold</label>
+<label style="margin:0">Align: <select id="print-align" style="width:auto"><option>left</option><option>center</option><option>right</option></select></label>
+<label style="margin:0"><input type="checkbox" id="print-cut" checked> Cut</label>
+</div>
+<button style="margin-top:8px" onclick="printText()">Print</button>
+<div class="status" id="print-text-status"></div>
+</div>
+
+<!-- Print Receipt -->
+<div class="card">
+<h2>Print Receipt</h2>
+<label>Header</label>
+<input id="receipt-header" value="BARAKA">
+<label>Items (JSON array)</label>
+<textarea id="receipt-items" placeholder='[{"name":"Coffee","qty":2,"price":5.00}]'>[{"name":"Coffee","qty":2,"price":5.00},{"name":"Cake","qty":1,"price":3.50}]</textarea>
+<div class="row" style="margin-top:4px">
+<div><label>Subtotal</label><input id="receipt-subtotal" type="number" value="13.50" style="width:80px"></div>
+<div><label>Tax</label><input id="receipt-tax" type="number" value="1.35" style="width:80px"></div>
+<div><label>Total</label><input id="receipt-total" type="number" value="14.85" style="width:80px"></div>
+</div>
+<label>Footer</label>
+<input id="receipt-footer" value="Thank you!">
+<button style="margin-top:8px" onclick="printReceipt()">Print Receipt</button>
+<div class="status" id="print-receipt-status"></div>
+</div>
+
+<!-- Print QR -->
+<div class="card">
+<h2>Print QR Code</h2>
+<label>Text / URL</label>
+<input id="qr-text" value="https://baraka.pos" placeholder="Text to encode">
+<label>Size (1-8)</label>
+<input id="qr-size" type="number" value="4" min="1" max="8" style="width:60px">
+<button style="margin-top:8px" onclick="printQR()">Print QR</button>
+<div class="status" id="print-qr-status"></div>
+</div>
+
+<!-- Print Barcode -->
+<div class="card">
+<h2>Print Barcode</h2>
+<label>Code</label>
+<input id="barcode-code" value="1234567890" placeholder="Barcode data">
+<div class="row" style="margin-top:4px">
+<div><label>Type</label><select id="barcode-type" style="width:auto"><option>CODE39</option><option>EAN13</option><option>EAN8</option><option>UPC-A</option><option>CODE128</option></select></div>
+<div><label>Height</label><input id="barcode-height" type="number" value="64" style="width:60px"></div>
+</div>
+<button style="margin-top:8px" onclick="printBarcode()">Print Barcode</button>
+<div class="status" id="print-barcode-status"></div>
+</div>
+
+<!-- Print Image -->
+<div class="card">
+<h2>Print Image</h2>
+<input type="file" id="image-file" accept=".png,.jpg,.jpeg,.bmp,.gif">
+<div class="row" style="margin-top:8px">
+<label style="margin:0"><input type="checkbox" id="image-center" checked> Center</label>
+<label style="margin:0"><input type="checkbox" id="image-cut" checked> Cut</label>
+</div>
+<button style="margin-top:8px" onclick="printImage()">Print Image</button>
+<div class="status" id="print-image-status"></div>
+</div>
+
+<!-- Actions -->
+<div class="card">
+<h2>Actions</h2>
+<div class="row">
+<button class="green" onclick="doAction('beep')">Beep</button>
+<button class="amber" onclick="doAction('cut')">Cut Paper</button>
+<button onclick="doAction('openCash')">Open Cash Drawer</button>
+</div>
+<div style="margin-top:8px">
+<label>Beep Count</label>
+<input id="beep-count" type="number" value="1" min="1" max="9" style="width:60px">
+<label>Beep Duration</label>
+<input id="beep-duration" type="number" value="3" min="1" max="9" style="width:60px">
+</div>
+<div class="status" id="action-status"></div>
+</div>
+
+<!-- Jobs -->
+<div class="card">
+<h2>Jobs</h2>
+<button onclick="loadJobs()">Refresh Jobs</button>
+<button onclick="loadQueueStatus()">Queue Status</button>
+<div class="log" id="jobs-log" style="display:none"></div>
+</div>
+
+<!-- Response Log -->
+<div class="card full">
+<h2>Response Log</h2>
+<button class="red sm" onclick="document.getElementById('response-log').textContent=''">Clear</button>
+<div class="log" id="response-log"></div>
+</div>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let selectedPrinter = null;
+let printers = {};
+
+function api() { return $('api-url').value.replace(/\/+$/, ''); }
+
+function log(msg, data) {
+    const el = $('response-log');
+    const ts = new Date().toLocaleTimeString();
+    const text = data !== undefined ? `[${ts}] ${msg}\n${JSON.stringify(data, null, 2)}` : `[${ts}] ${msg}`;
+    el.textContent = text + '\n\n' + el.textContent;
+}
+
+function selectPrinter(name) {
+    selectedPrinter = name;
+    document.querySelectorAll('.printer-tag').forEach(t => {
+        t.classList.toggle('active', t.dataset.name === name);
+    });
+}
+
+function renderPrinters() {
+    const el = $('printer-list');
+    el.innerHTML = '';
+    for (const [name, info] of Object.entries(printers)) {
+        const tag = document.createElement('span');
+        tag.className = 'printer-tag' + (info.connected ? '' : ' offline') + (name === selectedPrinter ? ' active' : '');
+        tag.dataset.name = name;
+        tag.innerHTML = `<span class="dot ${info.connected ? 'on' : 'off'}"></span>${name} (${info.connection_type || 'network'})`;
+        tag.onclick = () => selectPrinter(name);
+        el.appendChild(tag);
+    }
+    if (!selectedPrinter && Object.keys(printers).length > 0) {
+        const first = Object.entries(printers).find(([_, v]) => v.connected)?.[0] || Object.keys(printers)[0];
+        selectPrinter(first);
+    }
+}
+
+async function checkHealth() {
+    try {
+        const res = await fetch(api() + '/api/health');
+        const data = await res.json();
+        $('health-dot').textContent = data.ok ? '\u2705' : '\u274c';
+        $('health-status').textContent = `v${data.version} | ${data.printers} printer(s)`;
+    } catch {
+        $('health-dot').textContent = '\u274c';
+        $('health-status').textContent = 'offline';
+    }
+}
+
+function discoverPrinters() {
+    const logEl = $('discover-log');
+    logEl.style.display = 'block';
+    logEl.textContent = 'Scanning...\n';
+    printers = {};
+
+    const es = new EventSource(api() + '/api/printers');
+    es.addEventListener('status', e => {
+        const d = JSON.parse(e.data);
+        logEl.textContent += d.message + '\n';
+    });
+    es.addEventListener('printer', e => {
+        const d = JSON.parse(e.data);
+        printers[d.name] = d;
+        logEl.textContent += `  Found: ${d.name} (${d.connection_type}) ${d.connected ? 'ONLINE' : 'OFFLINE'}\n`;
+        renderPrinters();
+    });
+    es.addEventListener('complete', e => {
+        const d = JSON.parse(e.data);
+        printers = d.printers;
+        renderPrinters();
+        logEl.textContent += `Done. ${d.total} printer(s) total.\n`;
+        log('Discovery complete', d);
+        es.close();
+        checkHealth();
+    });
+    es.onerror = () => { logEl.textContent += 'Connection closed.\n'; es.close(); };
+}
+
+async function registerUsb() {
+    try {
+        const res = await fetch(api() + '/api/printers/register-usb', { method: 'POST' });
+        const data = await res.json();
+        log('Register USB', data);
+    } catch (e) { log('Register USB failed', e.message); }
+}
+
+async function checkSelected() {
+    if (!selectedPrinter) return log('No printer selected');
+    try {
+        const res = await fetch(api() + `/api/printers/${selectedPrinter}/check`);
+        const data = await res.json();
+        log(`Check ${selectedPrinter}`, data);
+    } catch (e) { log('Check failed', e.message); }
+}
+
+async function printText() {
+    if (!selectedPrinter) return log('No printer selected');
+    const body = {
+        type: 'text',
+        text: $('print-text').value || 'Hello World',
+        bold: $('print-bold').checked,
+        align: $('print-align').value,
+        cut: $('print-cut').checked,
+    };
+    try {
+        const res = await fetch(api() + `/api/printers/${selectedPrinter}/print`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        $('print-text-status').textContent = data.message || data.error;
+        log('Print text', data);
+    } catch (e) { log('Print text failed', e.message); }
+}
+
+async function printReceipt() {
+    if (!selectedPrinter) return log('No printer selected');
+    let items;
+    try { items = JSON.parse($('receipt-items').value); } catch { return log('Invalid items JSON'); }
+    const body = {
+        type: 'receipt',
+        header: $('receipt-header').value,
+        items,
+        subtotal: parseFloat($('receipt-subtotal').value) || null,
+        tax: parseFloat($('receipt-tax').value) || null,
+        total: parseFloat($('receipt-total').value) || null,
+        footer: $('receipt-footer').value,
+        cut: true,
+    };
+    try {
+        const res = await fetch(api() + `/api/printers/${selectedPrinter}/print`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        $('print-receipt-status').textContent = data.message || data.error;
+        log('Print receipt', data);
+    } catch (e) { log('Print receipt failed', e.message); }
+}
+
+async function printQR() {
+    if (!selectedPrinter) return log('No printer selected');
+    const body = { type: 'qr', text: $('qr-text').value, size: parseInt($('qr-size').value), cut: true };
+    try {
+        const res = await fetch(api() + `/api/printers/${selectedPrinter}/print`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        $('print-qr-status').textContent = data.message || data.error;
+        log('Print QR', data);
+    } catch (e) { log('Print QR failed', e.message); }
+}
+
+async function printBarcode() {
+    if (!selectedPrinter) return log('No printer selected');
+    const body = {
+        type: 'barcode',
+        code: $('barcode-code').value,
+        barcode_type: $('barcode-type').value,
+        height: parseInt($('barcode-height').value),
+        cut: true,
+    };
+    try {
+        const res = await fetch(api() + `/api/printers/${selectedPrinter}/print`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        $('print-barcode-status').textContent = data.message || data.error;
+        log('Print barcode', data);
+    } catch (e) { log('Print barcode failed', e.message); }
+}
+
+async function printImage() {
+    if (!selectedPrinter) return log('No printer selected');
+    const file = $('image-file').files[0];
+    if (!file) return log('No image selected');
+    const form = new FormData();
+    form.append('image', file);
+    const params = new URLSearchParams({
+        center: $('image-center').checked,
+        cut: $('image-cut').checked,
+    });
+    try {
+        const res = await fetch(api() + `/api/printers/${selectedPrinter}/actions/printImage?${params}`, {
+            method: 'POST', body: form
+        });
+        const data = await res.json();
+        $('print-image-status').textContent = data.message || data.error;
+        log('Print image', data);
+    } catch (e) { log('Print image failed', e.message); }
+}
+
+async function doAction(type) {
+    if (!selectedPrinter) return log('No printer selected');
+    let params = '';
+    if (type === 'beep') params = `?count=${$('beep-count').value}&duration=${$('beep-duration').value}`;
+    try {
+        const res = await fetch(api() + `/api/printers/${selectedPrinter}/actions/${type}${params}`, { method: 'POST' });
+        const data = await res.json();
+        $('action-status').textContent = data.message || data.error;
+        log(`Action: ${type}`, data);
+    } catch (e) { log(`Action ${type} failed`, e.message); }
+}
+
+async function loadJobs() {
+    if (!selectedPrinter) return log('No printer selected');
+    const el = $('jobs-log');
+    el.style.display = 'block';
+    try {
+        const res = await fetch(api() + `/api/printers/${selectedPrinter}/jobs`);
+        const data = await res.json();
+        el.textContent = JSON.stringify(data, null, 2);
+        log('Jobs loaded', { count: data.count });
+    } catch (e) { el.textContent = 'Error: ' + e.message; }
+}
+
+async function loadQueueStatus() {
+    const el = $('jobs-log');
+    el.style.display = 'block';
+    try {
+        const res = await fetch(api() + '/api/queue/status');
+        const data = await res.json();
+        el.textContent = JSON.stringify(data, null, 2);
+        log('Queue status', data);
+    } catch (e) { el.textContent = 'Error: ' + e.message; }
+}
+
+// Init
+checkHealth();
+setInterval(checkHealth, 30000);
+</script>
+</body>
+</html>

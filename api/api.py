@@ -5,7 +5,7 @@ import uuid
 
 from fastapi import FastAPI, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse
 from werkzeug.utils import secure_filename
 
 from settings.config import UPLOAD_FOLDER, MAX_CONTENT_LENGTH, ALLOWED_EXTENSIONS
@@ -43,6 +43,13 @@ register_error_handlers(app)
 
 
 # ─── Endpoints ───────────────────────────────────────────────
+
+@app.get("/", response_class=HTMLResponse)
+def serve_test_panel():
+    html_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "test.html")
+    with open(html_path, "r") as f:
+        return f.read()
+
 
 @app.get("/api/health")
 def health():
