@@ -49,6 +49,12 @@ def health():
     return {"ok": True, "status": "running", "version": "2.0.0", "printers": len(PRINTERS)}
 
 
+@app.get("/api/test-error")
+def test_error():
+    """Triggers a fake unexpected error to test Discord webhook."""
+    raise RuntimeError("Test error — verifying Discord webhook integration")
+
+
 @app.post("/api/printers/register-usb")
 def register_usb():
     return register_usb_printers_windows()
