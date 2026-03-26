@@ -271,62 +271,54 @@ if ($existing) {
     Write-Info "Firewall rule added (port 3006, private/domain networks)"
 }
 
-# ─── 5. Auto-start options ──────────────────────────────────
-Write-Host ""
-$choice = Read-Host "[?] Set up auto-start? (S)tartup folder / (T)ask scheduler / (N)one [N]"
+# ─── 5. Auto-start (hidden background service via Task Scheduler) ─
+Write-Info "Setting up auto-start..."
 
-switch ($choice.ToUpper()) {
-    "S" {
-        $StartupDir = [Environment]::GetFolderPath("Startup")
-        $ShortcutPath = Join-Path $StartupDir "Baraka Printer Proxy.lnk"
+$TaskName = "Baraka Printer Proxy"
+$existingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 
-        $LauncherVbs = Join-Path $ProjectDir "deployment\start-hidden.vbs"
-        @"
+if ($existingTask) {
+    # Remove old task to recreate with current paths
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+    Write-Info "Removed old scheduled task"
+}
+
+# Create a VBS launcher so the process runs completely hidden (no console window)
+$LauncherVbs = Join-Path $ProjectDir "deployment\start-hidden.vbs"
+@"
 Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run """$VenvPython"" ""$(Join-Path $ProjectDir "api.py")""", 0, False
+WshShell.CurrentDirectory = "$ProjectDir"
+WshShell.Run """$VenvPython"" ""$(Join-Path $ProjectDir "app.py")""", 0, False
 "@ | Out-File -Encoding ASCII $LauncherVbs
 
-        $WshShell = New-Object -ComObject WScript.Shell
-        $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-        $Shortcut.TargetPath = "wscript.exe"
-        $Shortcut.Arguments = """$LauncherVbs"""
-        $Shortcut.WorkingDirectory = $ProjectDir
-        $Shortcut.Description = "Baraka Printer Proxy Server"
-        $Shortcut.Save()
+$Action = New-ScheduledTaskAction `
+    -Execute "wscript.exe" `
+    -Argument """$LauncherVbs""" `
+    -WorkingDirectory $ProjectDir
 
-        Write-Info "Startup shortcut created at: $ShortcutPath"
-        Write-Info "Server will start automatically on login (hidden)"
-    }
-    "T" {
-        $Action = New-ScheduledTaskAction `
-            -Execute $VenvPython `
-            -Argument """$(Join-Path $ProjectDir "api.py")""" `
-            -WorkingDirectory $ProjectDir
+$Trigger = New-ScheduledTaskTrigger -AtLogOn
 
-        $Trigger = New-ScheduledTaskTrigger -AtLogOn
-        $Settings = New-ScheduledTaskSettingsSet `
-            -AllowStartIfOnBatteries `
-            -DontStopIfGoingOnBatteries `
-            -StartWhenAvailable `
-            -RestartCount 3 `
-            -RestartInterval (New-TimeSpan -Minutes 1)
+$Settings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -StartWhenAvailable `
+    -ExecutionTimeLimit (New-TimeSpan -Days 365) `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 1)
 
-        Register-ScheduledTask `
-            -TaskName "Baraka Printer Proxy" `
-            -Action $Action `
-            -Trigger $Trigger `
-            -Settings $Settings `
-            -Description "Baraka POS Printer Proxy Server" `
-            -RunLevel Highest | Out-Null
+Register-ScheduledTask `
+    -TaskName $TaskName `
+    -Action $Action `
+    -Trigger $Trigger `
+    -Settings $Settings `
+    -Description "Baraka POS Printer Proxy Server (hidden)" `
+    -RunLevel Highest | Out-Null
 
-        Write-Info "Scheduled task created: 'Baraka Printer Proxy'"
-        Write-Info "  View in Task Scheduler or run: Get-ScheduledTask 'Baraka Printer Proxy'"
-    }
-    default {
-        Write-Info "Skipped auto-start setup"
-        Write-Info "Run manually: $VenvPython $(Join-Path $ProjectDir 'api.py')"
-    }
-}
+Write-Info "Auto-start configured (hidden, runs on login)"
+Write-Info "  Task name: '$TaskName'"
+Write-Info "  Start now: Start-ScheduledTask '$TaskName'"
+Write-Info "  Stop:      Stop-ScheduledTask '$TaskName'"
+Write-Info "  Remove:    Unregister-ScheduledTask '$TaskName'"
 
 # ─── Done ────────────────────────────────────────────────────
 Write-Host ""

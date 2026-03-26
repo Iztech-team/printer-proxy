@@ -4,3 +4,5 @@ __pycache__/
 uploads/
 server.log
 registry.json
+venv
+deployment/start-hidden.vbs
