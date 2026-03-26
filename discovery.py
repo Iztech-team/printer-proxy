@@ -603,13 +603,36 @@ class PrinterDiscovery:
         if _IS_WINDOWS:
             try:
                 import win32print
+
+                # Get active USB ports by checking which ones have a device connected
+                active_usb_ports = set()
+                try:
+                    import subprocess
+                    result = subprocess.run(
+                        ["powershell", "-ExecutionPolicy", "Bypass", "-Command",
+                         "Get-PnpDevice -Class Printer -Status OK -ErrorAction SilentlyContinue | "
+                         "ForEach-Object { (Get-PnpDeviceProperty -InstanceId $_.InstanceId "
+                         "-KeyName 'DEVPKEY_Device_PortName' -ErrorAction SilentlyContinue).Data } | "
+                         "Where-Object { $_ -like 'USB*' }"],
+                        capture_output=True, text=True, timeout=15,
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        for line in result.stdout.strip().splitlines():
+                            port_name = line.strip()
+                            if port_name:
+                                active_usb_ports.add(port_name)
+                        logger.info(f"  Active USB printer ports: {active_usb_ports}")
+                except Exception as e:
+                    logger.debug(f"Could not detect active USB ports: {e}")
+
                 printers = win32print.EnumPrinters(
                     win32print.PRINTER_ENUM_LOCAL, None, 2
                 )
                 for printer in printers:
                     name = printer["pPrinterName"]
                     port = printer.get("pPortName", "")
-                    # Include printers on USB ports or with known POS-related names
+                    status = printer.get("Status", 0)
+
                     is_usb = port.upper().startswith("USB")
                     name_lower = name.lower()
                     is_pos = any(kw in name_lower for kw in (
@@ -617,17 +640,29 @@ class PrinterDiscovery:
                         "epson", "star", "citizen", "bixolon", "sewoo",
                         "xp-", "x85", "58mm", "80mm",
                     ))
-                    if is_usb or is_pos:
-                        printer_info = {
-                            "type": "system",
-                            "connection_type": "win32raw",
-                            "device": name,
-                            "port": port,
-                            "description": printer.get("pDriverName", ""),
-                            "responsive": True,
-                        }
-                        found.append(printer_info)
+
+                    if not (is_usb or is_pos):
+                        continue
+
+                    # Determine if the printer is actually connected
+                    is_connected = True
+                    if is_usb and active_usb_ports:
+                        # Only include USB printers whose port is active
+                        is_connected = port in active_usb_ports
+
+                    printer_info = {
+                        "type": "system",
+                        "connection_type": "win32raw",
+                        "device": name,
+                        "port": port,
+                        "description": printer.get("pDriverName", ""),
+                        "responsive": is_connected,
+                    }
+                    found.append(printer_info)
+                    if is_connected:
                         logger.info(f"  Found Windows printer: {name} on {port}")
+                    else:
+                        logger.info(f"  Stale Windows printer: {name} on {port} (not connected)")
             except ImportError:
                 logger.debug("win32print not available — Windows printer discovery disabled")
             except Exception as e:

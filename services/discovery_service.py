@@ -88,7 +88,10 @@ def discovery_event_stream():
         elif event["type"] in ("system", "serial"):
             device = event["device"]
             conn_type = event["connection_type"]
-            discovered_hosts.add(device)
+            is_responsive = event.get("responsive", True)
+
+            if is_responsive:
+                discovered_hosts.add(device)
 
             name = _find_existing_by_host(device)
             if not name:
@@ -101,7 +104,7 @@ def discovery_event_stream():
                 }
 
             PRINTERS[name]["connection_type"] = conn_type
-            yield f"event: printer\ndata: {json.dumps({'name': name, 'connection_type': conn_type, 'device': device, 'description': event.get('description', ''), 'connected': True})}\n\n"
+            yield f"event: printer\ndata: {json.dumps({'name': name, 'connection_type': conn_type, 'device': device, 'description': event.get('description', ''), 'connected': is_responsive})}\n\n"
 
     save_registry()
 

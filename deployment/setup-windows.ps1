@@ -113,8 +113,16 @@ if (-not (Test-Path $VenvDir)) {
 }
 
 Write-Info "Installing Python dependencies..."
-& $VenvPip install -q -r (Join-Path $ProjectDir "requirements.txt")
-Write-Info "Python dependencies installed"
+try {
+    # Use python -m pip instead of pip.exe directly — more reliable with path spaces
+    & $VenvPython -m pip install -q --upgrade pip 2>&1 | Out-Null
+    & $VenvPython -m pip install -q -r (Join-Path $ProjectDir "requirements.txt")
+    Write-Info "Python dependencies installed"
+} catch {
+    Write-Err "Failed to install dependencies: $_"
+    Write-Err "Try manually: $VenvPython -m pip install -r requirements.txt"
+    exit 1
+}
 
 # ─── 3. Auto-detect and register USB printers ────────────────
 Write-Host ""
