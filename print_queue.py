@@ -167,15 +167,12 @@ class PrintQueue:
         while not self._shutdown.is_set():
             try:
                 job_id = q.get(timeout=5)
-                idle_cycles = 0  # Reset on successful dequeue
+                idle_cycles = 0
             except Empty:
-                # Only exit after multiple consecutive idle cycles to avoid
-                # the race where a job arrives between q.empty() and break.
                 idle_cycles += 1
                 if idle_cycles < 3:
                     continue
                 with self._lock:
-                    # Final check: is the queue truly empty and no active jobs?
                     if q.empty() and not any(
                         j["status"]
                         in (
@@ -187,14 +184,12 @@ class PrintQueue:
                         if j["printer"] == printer_name
                     ):
                         break
-                    # Jobs still exist, reset and keep waiting
                     idle_cycles = 0
                 continue
 
             with self._lock:
                 job = self._jobs.get(job_id)
                 if not job or job["status"] == self.STATUS_CANCELLED:
-                    q.task_done()
                     continue
                 job["status"] = self.STATUS_PRINTING
                 job["started_at"] = datetime.now().isoformat()
@@ -211,7 +206,7 @@ class PrintQueue:
             except Exception as e:
                 retry_count = job["retries"] + 1
                 if retry_count <= self.max_retries:
-                    delay = self.retry_base_delay * (2 ** (retry_count - 1))
+                    delay = min(self.retry_base_delay * (2 ** (retry_count - 1)), 5)
                     with self._lock:
                         job["status"] = self.STATUS_RETRYING
                         job["retries"] = retry_count
@@ -234,8 +229,6 @@ class PrintQueue:
                         f"[QUEUE] Job {job_id[:8]} failed permanently after "
                         f"{self.max_retries} retries: {e}"
                     )
-            finally:
-                q.task_done()
 
         logger.info(f"[QUEUE] Worker for {printer_name} exiting (queue idle)")
 

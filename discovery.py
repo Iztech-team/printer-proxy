@@ -622,27 +622,16 @@ class PrinterDiscovery:
                     if not (is_usb or is_pos):
                         continue
 
-                    # Check if the printer is actually reachable by trying to open it
-                    is_connected = False
-                    if is_usb:
-                        try:
-                            handle = win32print.OpenPrinter(name)
-                            try:
-                                # StartDocPrinter will fail fast if the USB port has no device
-                                job = win32print.StartDocPrinter(handle, 1, ("connectivity_check", None, "RAW"))
-                                win32print.EndDocPrinter(handle)
-                                is_connected = True
-                            except Exception:
-                                pass
-                            finally:
-                                win32print.ClosePrinter(handle)
-                        except Exception:
-                            pass
-                    else:
-                        is_connected = True
+                    # Check printer status — instant, no I/O
+                    status = printer.get("Status", 0)
+                    attributes = printer.get("Attributes", 0)
+                    # PRINTER_ATTRIBUTE_WORK_OFFLINE = 0x400
+                    is_offline = bool(attributes & 0x400)
+                    # Any non-zero status means error/busy/offline
+                    is_error = status != 0
 
-                    if not is_connected:
-                        logger.info(f"  Skipping stale printer: {name} on {port} (not connected)")
+                    if is_usb and (is_offline or is_error):
+                        logger.info(f"  Skipping offline printer: {name} on {port} (status={status})")
                         continue
 
                     printer_info = {

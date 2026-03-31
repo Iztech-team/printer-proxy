@@ -58,6 +58,9 @@ def connect_printer(printer_name: str):
     config = PRINTERS[printer_name]
     try:
         printer = _create_printer(config)
+        # Set a reasonable timeout for network printers (default is 60s — way too long)
+        if hasattr(printer, 'device') and hasattr(printer, 'timeout'):
+            printer.timeout = 10
         if hasattr(printer, 'open'):
             printer.open()
         return printer
@@ -66,31 +69,10 @@ def connect_printer(printer_name: str):
 
 
 def finish_job(printer_name: str, printer):
-    """Close connection after a job. For network printers, verify the printer
-    received the data by checking the socket is still alive before closing."""
+    """Close connection after a job."""
     if printer is None:
         return
-
-    config = PRINTERS.get(printer_name, {})
-    conn_type = config.get("connection_type", "network")
-
     try:
-        if conn_type == "network" and hasattr(printer, 'device') and printer.device is not None:
-            sock = printer.device
-            # Verify printer is still alive after sending data
-            try:
-                sock.settimeout(2)
-                # Shutdown write side — tells printer we're done sending
-                sock.shutdown(socket.SHUT_WR)
-                # Try to read — blocks until printer closes its end (data processed)
-                # or timeout (printer is busy but alive, which is fine)
-                try:
-                    sock.recv(64)
-                except socket.timeout:
-                    pass  # Timeout = printer is busy processing, that's OK
-            except OSError:
-                logging.warning(f"[CONNECTION] Printer {printer_name} may not have received data")
-
         printer.close()
     except Exception:
         pass
