@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from settings.config import MIN_FEED_BEFORE_CUT
-from services.connection import connect_printer, close_if_job_based, evict_printer_connection, init_printer
+from services.connection import connect_printer, finish_job, evict_printer_connection, init_printer
 
 
 def exec_text(printer_name, params):
@@ -24,7 +24,7 @@ def exec_text(printer_name, params):
             p.text("\n")
         p.set()
         feed_and_cut(p, params)
-        close_if_job_based(printer_name, p)
+        finish_job(printer_name, p)
     except Exception:
         evict_printer_connection(printer_name)
         raise
@@ -97,7 +97,7 @@ def exec_receipt(printer_name, params):
         p.set()
 
         feed_and_cut(p, params)
-        close_if_job_based(printer_name, p)
+        finish_job(printer_name, p)
     except Exception:
         evict_printer_connection(printer_name)
         raise
@@ -114,7 +114,7 @@ def exec_qr(printer_name, params):
         if center:
             p.set(align="left")
         feed_and_cut(p, params)
-        close_if_job_based(printer_name, p)
+        finish_job(printer_name, p)
     except Exception:
         evict_printer_connection(printer_name)
         raise
@@ -138,7 +138,7 @@ def exec_barcode(printer_name, params):
         if center:
             p.set(align="left")
         feed_and_cut(p, params)
-        close_if_job_based(printer_name, p)
+        finish_job(printer_name, p)
     except Exception:
         evict_printer_connection(printer_name)
         raise
@@ -148,7 +148,7 @@ def exec_raw(printer_name, params):
     p = connect_printer(printer_name)
     try:
         p._raw(params["data"])
-        close_if_job_based(printer_name, p)
+        finish_job(printer_name, p)
     except Exception:
         evict_printer_connection(printer_name)
         raise

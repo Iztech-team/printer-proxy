@@ -16,16 +16,17 @@ def merge_discovered_printers(found):
         found_port = info.get("port", 9100)
         matched_name = None
 
-        if found_mac != "unknown":
+        # Match by IP first (reliable — same printer always has same IP)
+        for name, config in PRINTERS.items():
+            if config["host"] == ip:
+                matched_name = name
+                break
+
+        # Then try MAC (handles IP changes from DHCP)
+        if not matched_name and found_mac != "unknown":
             for name, config in PRINTERS.items():
                 existing_mac = config.get("mac", "unknown")
                 if existing_mac != "unknown" and existing_mac == found_mac:
-                    matched_name = name
-                    break
-
-        if not matched_name:
-            for name, config in PRINTERS.items():
-                if config["host"] == ip:
                     matched_name = name
                     break
 
@@ -33,7 +34,7 @@ def merge_discovered_printers(found):
             config = PRINTERS[matched_name]
             old_ip = config["host"]
             if old_ip != ip:
-                logging.info(f"  {matched_name}: IP changed {old_ip} -> {ip} (MAC: {found_mac})")
+                logging.info(f"[MERGE] {matched_name}: IP changed {old_ip} -> {ip}")
                 config["host"] = ip
                 evict_printer_connection(matched_name)
                 updated_count += 1
@@ -44,7 +45,7 @@ def merge_discovered_printers(found):
             name = _next_printer_name()
             PRINTERS[name] = {"host": ip, "port": found_port, "mac": found_mac}
             new_count += 1
-            logging.info(f"  Discovered: {name} @ {ip} (MAC: {found_mac})")
+            logging.info(f"[MERGE] New printer: {name} @ {ip} (MAC: {found_mac})")
 
     return new_count, updated_count
 
@@ -68,22 +69,26 @@ def _find_existing_by_host(host_value):
 
 
 def discovery_event_stream():
+    logging.info("[DISCOVERY] Starting printer discovery...")
     discovery = PrinterDiscovery()
     discovered_hosts = set()
 
     for event in discovery.scan_streaming():
         if event["type"] == "status":
+            logging.info(f"[DISCOVERY] {event['phase']}: {event['message']}")
             yield f"event: status\ndata: {json.dumps(event)}\n\n"
 
         elif event["type"] == "network":
             ip = event["ip"]
+            mac = event.get('mac', 'unknown')
             discovered_hosts.add(ip)
             found = {ip: {"port": event["port"], "mac": event.get("mac"), "responsive": True}}
             merge_discovered_printers(found)
             name = _find_existing_by_host(ip)
             if name:
                 PRINTERS[name]["connection_type"] = "network"
-                yield f"event: printer\ndata: {json.dumps({'name': name, 'connection_type': 'network', 'host': ip, 'port': event['port'], 'mac': event.get('mac', 'unknown'), 'connected': True})}\n\n"
+                logging.info(f"[DISCOVERY] Found network printer: {name} @ {ip} (MAC: {mac})")
+                yield f"event: printer\ndata: {json.dumps({'name': name, 'connection_type': 'network', 'host': ip, 'port': event['port'], 'mac': mac, 'connected': True})}\n\n"
 
         elif event["type"] in ("system", "serial"):
             device = event["device"]
@@ -104,9 +109,12 @@ def discovery_event_stream():
                 }
 
             PRINTERS[name]["connection_type"] = conn_type
+            status = "ONLINE" if is_responsive else "OFFLINE"
+            logging.info(f"[DISCOVERY] Found {conn_type} printer: {name} @ {device} [{status}]")
             yield f"event: printer\ndata: {json.dumps({'name': name, 'connection_type': conn_type, 'device': device, 'description': event.get('description', ''), 'connected': is_responsive})}\n\n"
 
     save_registry()
+    logging.info(f"[DISCOVERY] Complete. {len(PRINTERS)} printer(s) total, {len(discovered_hosts)} connected.")
 
     result = {}
     for name, config in PRINTERS.items():

@@ -1,11 +1,14 @@
 import base64
 import binascii
+import logging
 import os
+import time
 import uuid
 
-from fastapi import FastAPI, HTTPException, Query, UploadFile
+from fastapi import FastAPI, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from werkzeug.utils import secure_filename
 
 from settings.config import UPLOAD_FOLDER, MAX_CONTENT_LENGTH, ALLOWED_EXTENSIONS
@@ -17,7 +20,7 @@ from services.actions import action_beep, action_cut, action_open_cash, action_p
 from services.image import allowed_file, prepare_image_for_thermal
 from services.discovery_service import discovery_event_stream, register_usb_printers_windows
 from services.errors import register_error_handlers
-from services.connection import connect_printer, close_if_job_based, evict_printer_connection
+from services.connection import connect_printer, finish_job, evict_printer_connection
 from settings.config import QUEUE_MAX_RETRIES, QUEUE_RETRY_BASE_DELAY, QUEUE_JOB_HISTORY_SIZE
 from print_queue import PrintQueue
 
@@ -38,6 +41,29 @@ app.add_middleware(
 )
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+logger = logging.getLogger(__name__)
+
+
+class RequestLogMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start = time.time()
+        method = request.method
+        path = request.url.path
+        query = str(request.url.query)
+        full_path = f"{path}?{query}" if query else path
+
+        logger.info(f"=> {method} {full_path}")
+
+        response = await call_next(request)
+
+        duration = round((time.time() - start) * 1000)
+        logger.info(f"<= {method} {full_path} [{response.status_code}] {duration}ms")
+
+        return response
+
+
+app.add_middleware(RequestLogMiddleware)
 
 register_error_handlers(app)
 
@@ -67,6 +93,20 @@ def register_usb():
     return register_usb_printers_windows()
 
 
+@app.post("/api/printers/{name}/reconnect")
+def reconnect_printer(name: str):
+    """Drop the current connection and force a fresh one. Use when a printer is stuck."""
+    validate_printer(name)
+    evict_printer_connection(name)
+    # Try to establish a new connection to verify it works
+    try:
+        p = connect_printer(name)
+        finish_job(name, p)
+        return {"success": True, "message": f"Reconnected to {name}", "printer": name}
+    except Exception as e:
+        return {"success": False, "message": f"Reconnect failed: {e}", "printer": name}
+
+
 @app.get("/api/printers/{name}/check")
 def check_printer(name: str):
     """Check if a specific printer is reachable. Works with printer name or IP."""
@@ -94,7 +134,7 @@ def check_printer(name: str):
     # For USB/serial/file printers — try to connect
     try:
         p = connect_printer(name)
-        close_if_job_based(name, p)
+        finish_job(name, p)
         return {"success": True, "printer": name, "device": config["host"], "reachable": True, "type": conn_type}
     except Exception as e:
         return {"success": True, "printer": name, "device": config["host"], "reachable": False, "type": conn_type, "error": str(e)}

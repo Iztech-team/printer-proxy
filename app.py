@@ -10,8 +10,33 @@ from settings.config import SERVER_HOST, SERVER_PORT
 from settings.registry import PRINTERS, load_registry
 from api.api import app  # noqa: F401 — needed for uvicorn
 
+def _disable_quickedit_windows():
+    """Disable QuickEdit Mode on Windows console.
+    Without this, clicking the terminal window pauses the entire process
+    until Enter is pressed — freezing all printer jobs.
+    """
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
+        mode = ctypes.c_ulong()
+        kernel32.GetConsoleMode(handle, ctypes.byref(mode))
+        # Disable ENABLE_QUICK_EDIT_MODE (0x0040) and ENABLE_INSERT_MODE (0x0020)
+        mode.value &= ~0x0040
+        mode.value &= ~0x0020
+        # Enable ENABLE_EXTENDED_FLAGS (0x0080) — required for the above to take effect
+        mode.value |= 0x0080
+        kernel32.SetConsoleMode(handle, mode)
+    except Exception:
+        pass  # Not on Windows or no console
+
+
 if __name__ == "__main__":
+    import platform
     import uvicorn
+
+    if platform.system() == "Windows":
+        _disable_quickedit_windows()
 
     log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.log")
     _hidden_mode = sys.stdout is None or not hasattr(sys.stdout, "write")

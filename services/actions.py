@@ -1,7 +1,7 @@
 import os
 
 from settings.config import MIN_FEED_BEFORE_CUT
-from services.connection import connect_printer, close_if_job_based, evict_printer_connection, init_printer
+from services.connection import connect_printer, finish_job, evict_printer_connection, init_printer
 from services.printer import feed_and_cut
 
 
@@ -15,7 +15,7 @@ def action_beep(printer_name, params):
             p.buzzer(times=c, duration=d)
         except Exception:
             p._raw(b"\x1b\x42" + bytes([c]) + bytes([d]))
-        close_if_job_based(printer_name, p)
+        finish_job(printer_name, p)
     except Exception:
         evict_printer_connection(printer_name)
         raise
@@ -31,7 +31,7 @@ def action_cut(printer_name, params):
             feed_lines = MIN_FEED_BEFORE_CUT
         p.text("\n" * feed_lines)
         p.cut(mode=cut_mode, feed=False)
-        close_if_job_based(printer_name, p)
+        finish_job(printer_name, p)
     except Exception:
         evict_printer_connection(printer_name)
         raise
@@ -45,7 +45,7 @@ def action_open_cash(printer_name, params):
         t1_val = max(0, min(255, params.get("t1", 100)))
         t2_val = max(0, min(255, params.get("t2", 100)))
         p._raw(b"\x1b\x70" + bytes([pin_val, t1_val, t2_val]))
-        close_if_job_based(printer_name, p)
+        finish_job(printer_name, p)
     except Exception:
         evict_printer_connection(printer_name)
         raise
@@ -62,7 +62,7 @@ def action_print_image(printer_name, filepath, center, cut, lines_after):
             if center:
                 p.set(align="left")
             feed_and_cut(p, {"cut": cut, "lines_after": lines_after})
-            close_if_job_based(printer_name, p)
+            finish_job(printer_name, p)
         except Exception:
             evict_printer_connection(printer_name)
             raise
