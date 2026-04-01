@@ -2,8 +2,7 @@ import json
 import logging
 import platform as _platform
 
-from settings.registry import PRINTERS, save_registry
-from services.connection import evict_printer_connection
+from settings.registry import PRINTERS, _printers_lock, save_registry
 from discovery import PrinterDiscovery
 
 
@@ -36,7 +35,6 @@ def merge_discovered_printers(found):
             if old_ip != ip:
                 logging.info(f"[MERGE] {matched_name}: IP changed {old_ip} -> {ip}")
                 config["host"] = ip
-                evict_printer_connection(matched_name)
                 updated_count += 1
             if found_mac != "unknown":
                 config["mac"] = found_mac

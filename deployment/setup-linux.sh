@@ -59,17 +59,26 @@ info "Setting up USB printer permissions..."
 
 UDEV_RULES="/etc/udev/rules.d/99-thermal-printer.rules"
 
-cat > "$UDEV_RULES" << 'RULES'
+# Detect serial group (dialout on Debian/Ubuntu/Fedora, uucp on Arch)
+if getent group dialout >/dev/null 2>&1; then
+    SERIAL_GRP="dialout"
+elif getent group uucp >/dev/null 2>&1; then
+    SERIAL_GRP="uucp"
+else
+    SERIAL_GRP="root"
+fi
+
+cat > "$UDEV_RULES" << RULES
 # Baraka Printer Proxy — allow user access to USB printer devices
 #
 # /dev/usb/lp* devices (created by usblp kernel module)
 SUBSYSTEM=="usbmisc", KERNEL=="lp*", MODE="0666", GROUP="lp"
 
 # Serial adapters commonly used in thermal printers (CH340, PL2303, CP2102, FTDI)
-SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", MODE="0666", GROUP="dialout"
-SUBSYSTEM=="tty", ATTRS{idVendor}=="067b", MODE="0666", GROUP="dialout"
-SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", MODE="0666", GROUP="dialout"
-SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", MODE="0666", GROUP="dialout"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", MODE="0666", GROUP="$SERIAL_GRP"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="067b", MODE="0666", GROUP="$SERIAL_GRP"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", MODE="0666", GROUP="$SERIAL_GRP"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", MODE="0666", GROUP="$SERIAL_GRP"
 RULES
 
 udevadm control --reload-rules
@@ -78,11 +87,15 @@ udevadm trigger
 info "Udev rules installed at $UDEV_RULES"
 
 # ─── 3. Add user to lp group ────────────────────────────────
-if id -nG "$REAL_USER" | grep -qw "lp"; then
-    info "User '$REAL_USER' is already in the 'lp' group"
+if getent group lp >/dev/null 2>&1; then
+    if id -nG "$REAL_USER" | grep -qw "lp"; then
+        info "User '$REAL_USER' is already in the 'lp' group"
+    else
+        usermod -aG lp "$REAL_USER"
+        info "Added '$REAL_USER' to 'lp' group (re-login required for full effect)"
+    fi
 else
-    usermod -aG lp "$REAL_USER"
-    info "Added '$REAL_USER' to 'lp' group (re-login required for full effect)"
+    warn "'lp' group does not exist — USB printer access may need manual permission setup"
 fi
 
 # ─── 4. Ensure usblp kernel module is loaded ────────────────
@@ -100,12 +113,24 @@ else
     info "usblp kernel module already loaded"
 fi
 
-# ─── 4b. Add user to dialout group (for serial printers) ────
-if id -nG "$REAL_USER" | grep -qw "dialout"; then
-    info "User '$REAL_USER' is already in the 'dialout' group"
+# ─── 4b. Add user to serial group (for serial printers) ─────
+# Arch uses 'uucp', Debian/Ubuntu uses 'dialout'
+SERIAL_GROUP=""
+if getent group dialout >/dev/null 2>&1; then
+    SERIAL_GROUP="dialout"
+elif getent group uucp >/dev/null 2>&1; then
+    SERIAL_GROUP="uucp"
+fi
+
+if [ -n "$SERIAL_GROUP" ]; then
+    if id -nG "$REAL_USER" | grep -qw "$SERIAL_GROUP"; then
+        info "User '$REAL_USER' is already in the '$SERIAL_GROUP' group"
+    else
+        usermod -aG "$SERIAL_GROUP" "$REAL_USER"
+        info "Added '$REAL_USER' to '$SERIAL_GROUP' group (for serial printers)"
+    fi
 else
-    usermod -aG dialout "$REAL_USER"
-    info "Added '$REAL_USER' to 'dialout' group (for serial printers)"
+    warn "No serial group found (dialout/uucp) — serial printers may need manual permission setup"
 fi
 
 # ─── 5. Python virtual environment ──────────────────────────
@@ -123,13 +148,12 @@ info "Installing Python dependencies..."
 sudo -u "$REAL_USER" "$VENV_DIR/bin/pip" install -q -r "$PROJECT_DIR/requirements.txt"
 info "Python dependencies installed"
 
-# ─── 6. Systemd service (optional) ──────────────────────────
-read -rp "$(echo -e "${YELLOW}[?]${NC} Install systemd service for auto-start? [y/N]: ")" INSTALL_SERVICE
+# ─── 6. Systemd service (auto-start on boot) ────────────────
+info "Setting up systemd service..."
 
-if [[ "$INSTALL_SERVICE" =~ ^[Yy]$ ]]; then
-    SERVICE_FILE="/etc/systemd/system/baraka-printer.service"
+SERVICE_FILE="/etc/systemd/system/baraka-printer.service"
 
-    cat > "$SERVICE_FILE" << EOF
+cat > "$SERVICE_FILE" << EOF
 [Unit]
 Description=Baraka Printer Proxy Server
 After=network.target
@@ -139,7 +163,7 @@ Type=simple
 User=$REAL_USER
 Group=$REAL_USER
 WorkingDirectory=$PROJECT_DIR
-ExecStart=$VENV_DIR/bin/python $PROJECT_DIR/api.py
+ExecStart=$VENV_DIR/bin/python $PROJECT_DIR/app.py
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -149,19 +173,15 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-    systemctl daemon-reload
-    systemctl enable baraka-printer.service
-    systemctl start baraka-printer.service
+systemctl daemon-reload
+systemctl enable baraka-printer.service
+systemctl restart baraka-printer.service
 
-    info "Systemd service installed and started"
-    info "  Status:  systemctl status baraka-printer"
-    info "  Logs:    journalctl -u baraka-printer -f"
-    info "  Stop:    systemctl stop baraka-printer"
-    info "  Restart: systemctl restart baraka-printer"
-else
-    info "Skipped systemd service installation"
-    info "Run manually: $VENV_DIR/bin/python $PROJECT_DIR/api.py"
-fi
+info "Systemd service installed and started"
+info "  Status:  systemctl status baraka-printer"
+info "  Logs:    journalctl -u baraka-printer -f"
+info "  Stop:    systemctl stop baraka-printer"
+info "  Restart: systemctl restart baraka-printer"
 
 # ─── Done ────────────────────────────────────────────────────
 echo ""

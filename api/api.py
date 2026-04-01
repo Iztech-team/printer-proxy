@@ -95,13 +95,11 @@ def register_usb():
 
 @app.post("/api/printers/{name}/reconnect")
 def reconnect_printer(name: str):
-    """Drop the current connection and force a fresh one. Use when a printer is stuck."""
+    """Drop the current pooled connection and establish a fresh one."""
     validate_printer(name)
     evict_printer_connection(name)
-    # Try to establish a new connection to verify it works
     try:
         p = connect_printer(name)
-        finish_job(name, p)
         return {"success": True, "message": f"Reconnected to {name}", "printer": name}
     except Exception as e:
         return {"success": False, "message": f"Reconnect failed: {e}", "printer": name}

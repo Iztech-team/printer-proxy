@@ -1,13 +1,11 @@
 from datetime import datetime
 
 from settings.config import MIN_FEED_BEFORE_CUT
-from services.connection import connect_printer, finish_job, evict_printer_connection, init_printer
+from services.connection import printer_session
 
 
 def exec_text(printer_name, params):
-    p = connect_printer(printer_name)
-    try:
-        init_printer(p)
+    with printer_session(printer_name) as p:
         use_custom_size = params.get("width", 1) != 1 or params.get("height", 1) != 1
         p.set(
             align=params.get("align", "left"),
@@ -24,16 +22,10 @@ def exec_text(printer_name, params):
             p.text("\n")
         p.set()
         feed_and_cut(p, params)
-        finish_job(printer_name, p)
-    except Exception:
-        evict_printer_connection(printer_name)
-        raise
 
 
 def exec_receipt(printer_name, params):
-    p = connect_printer(printer_name)
-    try:
-        init_printer(p)
+    with printer_session(printer_name) as p:
         CHAR_WIDTH = 48
 
         p.set(align="center", bold=True, width=2, height=2, custom_size=True)
@@ -97,16 +89,10 @@ def exec_receipt(printer_name, params):
         p.set()
 
         feed_and_cut(p, params)
-        finish_job(printer_name, p)
-    except Exception:
-        evict_printer_connection(printer_name)
-        raise
 
 
 def exec_qr(printer_name, params):
-    p = connect_printer(printer_name)
-    try:
-        init_printer(p)
+    with printer_session(printer_name) as p:
         center = params.get("center", True)
         if center:
             p.set(align="center")
@@ -114,16 +100,10 @@ def exec_qr(printer_name, params):
         if center:
             p.set(align="left")
         feed_and_cut(p, params)
-        finish_job(printer_name, p)
-    except Exception:
-        evict_printer_connection(printer_name)
-        raise
 
 
 def exec_barcode(printer_name, params):
-    p = connect_printer(printer_name)
-    try:
-        init_printer(p)
+    with printer_session(printer_name) as p:
         center = params.get("center", True)
         if center:
             p.set(align="center")
@@ -138,20 +118,11 @@ def exec_barcode(printer_name, params):
         if center:
             p.set(align="left")
         feed_and_cut(p, params)
-        finish_job(printer_name, p)
-    except Exception:
-        evict_printer_connection(printer_name)
-        raise
 
 
 def exec_raw(printer_name, params):
-    p = connect_printer(printer_name)
-    try:
+    with printer_session(printer_name) as p:
         p._raw(params["data"])
-        finish_job(printer_name, p)
-    except Exception:
-        evict_printer_connection(printer_name)
-        raise
 
 
 def feed_and_cut(p, params):
