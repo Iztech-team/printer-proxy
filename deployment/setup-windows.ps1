@@ -1,7 +1,7 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    Baraka Printer Proxy — Windows Setup
+    Baraka Printer Proxy -- Windows Setup
 
 .DESCRIPTION
     Installs Python, sets up dependencies, registers USB printers,
@@ -21,13 +21,13 @@ function Write-Err   { Write-Host "[x] $args" -ForegroundColor Red }
 $ProjectDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  Baraka Printer Proxy — Windows Setup"       -ForegroundColor Cyan
+Write-Host "  Baraka Printer Proxy -- Windows Setup"       -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Project dir: $ProjectDir"
 Write-Host ""
 
-# ─── 1. Install or find Python ───────────────────────────────
+# --- 1. Install or find Python -------------------------------
 Write-Info "Checking Python installation..."
 
 $PythonCmd = $null
@@ -40,7 +40,7 @@ foreach ($cmd in @("python", "python3", "py")) {
             # Detect Microsoft Store Python (causes venv/pywin32 issues)
             $pythonPath = (Get-Command $cmd -ErrorAction SilentlyContinue).Source
             if ($pythonPath -and $pythonPath -match "WindowsApps") {
-                Write-Warn "Found Microsoft Store Python — skipping (causes venv issues)"
+                Write-Warn "Found Microsoft Store Python -- skipping (causes venv issues)"
                 continue
             }
             $PythonCmd = $cmd
@@ -99,7 +99,7 @@ if (-not $PythonCmd) {
     }
 
     if ($installed) {
-        # Refresh PATH — both Machine and User scopes
+        # Refresh PATH -- both Machine and User scopes
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
 
         # Also check common install locations directly
@@ -137,7 +137,7 @@ if (-not $PythonCmd) {
     }
 }
 
-# ─── 2. Virtual environment ─────────────────────────────────
+# --- 2. Virtual environment ---------------------------------
 $VenvDir = Join-Path $ProjectDir "venv"
 $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
 $VenvPip = Join-Path $VenvDir "Scripts\pip.exe"
@@ -195,11 +195,11 @@ if ($pywin32Check.Trim() -ne "OK") {
         & $VenvPython -m pywin32_postinstall -install 2>&1 | Out-Null
         Write-Info "pywin32 configured"
     } catch {
-        Write-Warn "pywin32 post-install failed — USB printer discovery may not work: $_"
+        Write-Warn "pywin32 post-install failed -- USB printer discovery may not work: $_"
     }
 }
 
-# ─── 3. Auto-detect and register USB printers ────────────────
+# --- 3. Auto-detect and register USB printers ----------------
 Write-Host ""
 Write-Info "Scanning for USB printers..."
 
@@ -322,7 +322,7 @@ if ($hasPrintMgmt) {
 
 Write-Host ""
 
-# ─── 4. Firewall rule ───────────────────────────────────────
+# --- 4. Firewall rule ---------------------------------------
 Write-Info "Adding firewall rule for port 3006..."
 
 $RuleName = "Baraka Printer Proxy"
@@ -341,7 +341,7 @@ if ($existing) {
     Write-Info "Firewall rule added (port 3006, private/domain networks)"
 }
 
-# ─── 5. Auto-start (hidden background service via Task Scheduler) ─
+# --- 5. Auto-start (hidden background service via Task Scheduler) -
 Write-Info "Setting up auto-start..."
 
 # Stop any running instance first
@@ -355,7 +355,7 @@ if ($existingTask) {
     Start-Sleep -Seconds 2  # Let the old process exit
 }
 
-# Create VBS launcher — runs completely hidden (no console window)
+# Create VBS launcher -- runs completely hidden (no console window)
 $LauncherVbs = Join-Path $ProjectDir "deployment\start-hidden.vbs"
 $AppPath = Join-Path $ProjectDir "app.py"
 
@@ -397,7 +397,7 @@ Write-Info "  Stop:      Stop-ScheduledTask '$TaskName'"
 Write-Info "  Restart:   Stop-ScheduledTask '$TaskName'; Start-ScheduledTask '$TaskName'"
 Write-Info "  Remove:    Unregister-ScheduledTask '$TaskName'"
 
-# ─── Done ────────────────────────────────────────────────────
+# --- Done ---------------------------------------------------
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host "  Setup complete!"                            -ForegroundColor Cyan
