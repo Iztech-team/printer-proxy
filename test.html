@@ -152,6 +152,21 @@ API: <input id="api-url" value="http://localhost:3006" style="width:200px">
 <div class="log" id="jobs-log" style="display:none"></div>
 </div>
 
+<!-- Stress Test -->
+<div class="card full">
+<h2>Stress Test — Concurrent Jobs</h2>
+<p style="font-size:.75rem;color:#64748b;margin-bottom:8px">Sends two long print jobs to the same printer simultaneously. Both should print sequentially (not mixed).</p>
+<div class="row">
+<div><label>Number of concurrent jobs</label><input id="stress-count" type="number" value="2" min="2" max="10" style="width:60px"></div>
+<div><label>Lines per job</label><input id="stress-lines" type="number" value="50" min="10" max="200" style="width:60px"></div>
+</div>
+<div class="row" style="margin-top:8px">
+<button class="red" onclick="runStressTest()">Run Stress Test</button>
+<button class="amber" onclick="runStressReceipt()">Stress Test (Receipts)</button>
+</div>
+<div class="log" id="stress-log" style="display:none"></div>
+</div>
+
 <!-- Response Log -->
 <div class="card full">
 <h2>Response Log</h2>
@@ -385,6 +400,84 @@ async function loadQueueStatus() {
         el.textContent = JSON.stringify(data, null, 2);
         log('Queue status', data);
     } catch (e) { el.textContent = 'Error: ' + e.message; }
+}
+
+async function runStressTest() {
+    if (!selectedPrinter) return log('No printer selected');
+    const jobCount = parseInt($('stress-count').value) || 2;
+    const lineCount = parseInt($('stress-lines').value) || 50;
+    const el = $('stress-log');
+    el.style.display = 'block';
+    el.textContent = `Sending ${jobCount} concurrent text jobs (${lineCount} lines each)...\n`;
+
+    const jobs = [];
+    for (let i = 0; i < jobCount; i++) {
+        let lines = `===== JOB ${i + 1} of ${jobCount} =====\n`;
+        for (let j = 1; j <= lineCount; j++) {
+            lines += `Job ${i + 1} | Line ${j.toString().padStart(3, '0')} of ${lineCount} | ${'#'.repeat(20)}\n`;
+        }
+        lines += `===== END JOB ${i + 1} =====\n`;
+
+        const body = { type: 'text', text: lines, cut: true };
+        const promise = fetch(api() + `/api/printers/${selectedPrinter}/print`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        }).then(r => r.json()).then(data => {
+            el.textContent += `Job ${i + 1}: queued (${data.job_id})\n`;
+            return data;
+        }).catch(e => {
+            el.textContent += `Job ${i + 1}: FAILED (${e.message})\n`;
+        });
+        jobs.push(promise);
+    }
+
+    // Fire all at once
+    const results = await Promise.all(jobs);
+    el.textContent += `\nAll ${jobCount} jobs submitted. Check printer output — each job should print completely before the next starts.\n`;
+    el.textContent += `Monitor: GET /api/printers/${selectedPrinter}/jobs\n`;
+    log('Stress test', { jobs: jobCount, lines: lineCount, results });
+}
+
+async function runStressReceipt() {
+    if (!selectedPrinter) return log('No printer selected');
+    const jobCount = parseInt($('stress-count').value) || 2;
+    const el = $('stress-log');
+    el.style.display = 'block';
+    el.textContent = `Sending ${jobCount} concurrent receipt jobs...\n`;
+
+    const jobs = [];
+    for (let i = 0; i < jobCount; i++) {
+        const items = [];
+        const itemCount = 15 + Math.floor(Math.random() * 10);
+        for (let j = 0; j < itemCount; j++) {
+            items.push({ name: `Item ${j + 1} (Job ${i + 1})`, qty: Math.floor(Math.random() * 5) + 1, price: parseFloat((Math.random() * 50 + 1).toFixed(2)) });
+        }
+        const subtotal = items.reduce((s, it) => s + it.qty * it.price, 0);
+        const tax = subtotal * 0.1;
+        const body = {
+            type: 'receipt',
+            header: `STRESS TEST #${i + 1}`,
+            subheader: `Job ${i + 1} of ${jobCount}`,
+            items,
+            subtotal: parseFloat(subtotal.toFixed(2)),
+            tax: parseFloat(tax.toFixed(2)),
+            total: parseFloat((subtotal + tax).toFixed(2)),
+            footer: `=== END JOB ${i + 1} ===`,
+            cut: true,
+        };
+        const promise = fetch(api() + `/api/printers/${selectedPrinter}/print`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        }).then(r => r.json()).then(data => {
+            el.textContent += `Receipt ${i + 1}: queued (${data.job_id})\n`;
+            return data;
+        }).catch(e => {
+            el.textContent += `Receipt ${i + 1}: FAILED (${e.message})\n`;
+        });
+        jobs.push(promise);
+    }
+
+    const results = await Promise.all(jobs);
+    el.textContent += `\nAll ${jobCount} receipts submitted. Each should print completely before the next.\n`;
+    log('Stress receipt test', { jobs: jobCount, results });
 }
 
 // Init

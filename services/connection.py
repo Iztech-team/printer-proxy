@@ -86,10 +86,12 @@ def connect_printer(printer_name: str):
                 if conn.device is not None:
                     if hasattr(conn.device, "getpeername"):
                         conn.device.getpeername()
+                    logging.info(f"[CONN] Reusing pooled connection for {printer_name}")
                     return conn
-            except (OSError, AttributeError):
-                pass
-            # Connection is dead — remove and recreate
+                else:
+                    logging.info(f"[CONN] Pooled connection for {printer_name} has no device — reconnecting")
+            except (OSError, AttributeError) as e:
+                logging.info(f"[CONN] Pooled connection for {printer_name} is dead ({e}) — reconnecting")
             try:
                 conn.close()
             except Exception:
@@ -97,9 +99,11 @@ def connect_printer(printer_name: str):
             _printer_connections.pop(printer_name, None)
 
         try:
+            logging.info(f"[CONN] Opening new connection to {printer_name} ({config['host']}:{config.get('port', 0)})")
             printer = _create_printer(config)
             printer.open()
             _printer_connections[printer_name] = printer
+            logging.info(f"[CONN] Connected to {printer_name}")
             return printer
         except Exception as e:
             _printer_connections.pop(printer_name, None)
