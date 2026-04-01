@@ -16,31 +16,46 @@ $ErrorActionPreference = "Continue"
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName PresentationCore
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 $ProjectDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 
+# --- Background music -------------------------------------------------------
+$script:musicMuted = $false
+$script:mediaPlayer = New-Object System.Windows.Media.MediaPlayer
+$musicFile = Join-Path $ProjectDir "fitgirl-soundtrack.mp3"
+if (Test-Path $musicFile) {
+    $script:mediaPlayer.Open([Uri]::new($musicFile))
+    $script:mediaPlayer.MediaEnded.Add({
+        $script:mediaPlayer.Position = [TimeSpan]::Zero
+        $script:mediaPlayer.Play()
+    })
+    $script:mediaPlayer.Volume = 0.5
+    $script:mediaPlayer.Play()
+}
+
 # --- Colors -----------------------------------------------------------------
-$C_Bg          = [System.Drawing.ColorTranslator]::FromHtml("#0F1923")
-$C_BgCard      = [System.Drawing.ColorTranslator]::FromHtml("#1A2733")
-$C_BgCardHover = [System.Drawing.ColorTranslator]::FromHtml("#223344")
-$C_HeaderTop   = [System.Drawing.ColorTranslator]::FromHtml("#00C896")
-$C_HeaderBot   = [System.Drawing.ColorTranslator]::FromHtml("#00897B")
-$C_Accent      = [System.Drawing.ColorTranslator]::FromHtml("#00E5A0")
-$C_AccentHover = [System.Drawing.ColorTranslator]::FromHtml("#00CC8E")
-$C_AccentDim   = [System.Drawing.ColorTranslator]::FromHtml("#00E5A0")
+$C_Bg          = [System.Drawing.ColorTranslator]::FromHtml("#000000")
+$C_BgCard      = [System.Drawing.ColorTranslator]::FromHtml("#111111")
+$C_BgCardHover = [System.Drawing.ColorTranslator]::FromHtml("#1A1A1A")
+$C_HeaderTop   = [System.Drawing.ColorTranslator]::FromHtml("#FFD600")
+$C_HeaderBot   = [System.Drawing.ColorTranslator]::FromHtml("#FFA000")
+$C_Accent      = [System.Drawing.ColorTranslator]::FromHtml("#FFD600")
+$C_AccentHover = [System.Drawing.ColorTranslator]::FromHtml("#FFEA00")
+$C_AccentDim   = [System.Drawing.ColorTranslator]::FromHtml("#FFD600")
 $C_Text        = [System.Drawing.Color]::White
-$C_TextSub     = [System.Drawing.ColorTranslator]::FromHtml("#8899AA")
-$C_TextDim     = [System.Drawing.ColorTranslator]::FromHtml("#556677")
-$C_Green       = [System.Drawing.ColorTranslator]::FromHtml("#00E676")
-$C_Amber       = [System.Drawing.ColorTranslator]::FromHtml("#FFAB40")
-$C_Red         = [System.Drawing.ColorTranslator]::FromHtml("#FF5252")
-$C_BarBg       = [System.Drawing.ColorTranslator]::FromHtml("#0D1520")
-$C_BarFill     = [System.Drawing.ColorTranslator]::FromHtml("#00E5A0")
-$C_Badge       = [System.Drawing.ColorTranslator]::FromHtml("#00C896")
-$C_BadgeDone   = [System.Drawing.ColorTranslator]::FromHtml("#00E676")
-$C_BadgeErr    = [System.Drawing.ColorTranslator]::FromHtml("#FF5252")
-$C_Separator   = [System.Drawing.ColorTranslator]::FromHtml("#1E3040")
+$C_TextSub     = [System.Drawing.ColorTranslator]::FromHtml("#999999")
+$C_TextDim     = [System.Drawing.ColorTranslator]::FromHtml("#555555")
+$C_Green       = [System.Drawing.ColorTranslator]::FromHtml("#FFD600")
+$C_Amber       = [System.Drawing.ColorTranslator]::FromHtml("#FF9100")
+$C_Red         = [System.Drawing.ColorTranslator]::FromHtml("#FF1744")
+$C_BarBg       = [System.Drawing.ColorTranslator]::FromHtml("#1A1A1A")
+$C_BarFill     = [System.Drawing.ColorTranslator]::FromHtml("#FFD600")
+$C_Badge       = [System.Drawing.ColorTranslator]::FromHtml("#FFA000")
+$C_BadgeDone   = [System.Drawing.ColorTranslator]::FromHtml("#FFD600")
+$C_BadgeErr    = [System.Drawing.ColorTranslator]::FromHtml("#FF1744")
+$C_Separator   = [System.Drawing.ColorTranslator]::FromHtml("#222222")
 
 # --- Fonts ------------------------------------------------------------------
 $F_Hero     = New-Object System.Drawing.Font("Segoe UI Light", 26)
@@ -60,7 +75,7 @@ $F_Status   = New-Object System.Drawing.Font("Segoe UI", 8.5)
 # ============================================================================
 $form = New-Object System.Windows.Forms.Form
 $form.Text            = "Baraka Printer Proxy"
-$form.ClientSize      = New-Object System.Drawing.Size(740, 620)
+$form.ClientSize      = New-Object System.Drawing.Size(740, 820)
 $form.StartPosition   = "CenterScreen"
 $form.FormBorderStyle = "FixedSingle"
 $form.MaximizeBox     = $false
@@ -73,7 +88,7 @@ $form.Icon            = [System.Drawing.SystemIcons]::Application
 # ============================================================================
 $headerPanel = New-Object System.Windows.Forms.Panel
 $headerPanel.Dock   = "Top"
-$headerPanel.Height = 100
+$headerPanel.Height = 120
 
 $headerPanel.Add_Paint({
     param($s, $e)
@@ -86,24 +101,53 @@ $headerPanel.Add_Paint({
     $brush.Dispose()
 
     # Title
-    $tf = New-Object System.Drawing.Font("Segoe UI Light", 24)
-    $e.Graphics.DrawString("Baraka Printer Proxy", $tf, [System.Drawing.Brushes]::White, 28, 16)
+    $tf = New-Object System.Drawing.Font("Segoe UI Light", 26)
+    $e.Graphics.TextRenderingHint = "AntiAlias"
+    $txtBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::Black)
+    $e.Graphics.DrawString("Baraka Printer Proxy", $tf, $txtBrush, 28, 18)
     $tf.Dispose()
+    $txtBrush.Dispose()
 
     # Subtitle
     $sf = New-Object System.Drawing.Font("Segoe UI", 10)
-    $subBrush = New-Object System.Drawing.SolidBrush([System.Drawing.ColorTranslator]::FromHtml("#C8FFF0"))
-    $e.Graphics.DrawString("Windows Installation Wizard", $sf, $subBrush, 32, 56)
+    $subBrush = New-Object System.Drawing.SolidBrush([System.Drawing.ColorTranslator]::FromHtml("#4A3500"))
+    $e.Graphics.DrawString("Windows Installation Wizard", $sf, $subBrush, 32, 62)
     $sf.Dispose()
     $subBrush.Dispose()
 
     # Decorative line
-    $linePen = New-Object System.Drawing.Pen([System.Drawing.ColorTranslator]::FromHtml("#00FFB0"), 2)
-    $e.Graphics.DrawLine($linePen, 30, 82, 200, 82)
+    $linePen = New-Object System.Drawing.Pen([System.Drawing.ColorTranslator]::FromHtml("#4A3500"), 2)
+    $e.Graphics.DrawLine($linePen, 30, 90, 220, 90)
     $linePen.Dispose()
 })
 
-$form.Controls.Add($headerPanel)
+# Mute button (drawn on header)
+$muteBtn = New-Object System.Windows.Forms.Button
+$muteBtn.Size      = New-Object System.Drawing.Size(40, 40)
+$muteBtn.Location  = New-Object System.Drawing.Point(685, 40)
+$muteBtn.FlatStyle = "Flat"
+$muteBtn.FlatAppearance.BorderSize = 0
+$muteBtn.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::FromArgb(40, 0, 0, 0)
+$muteBtn.FlatAppearance.MouseDownBackColor = [System.Drawing.Color]::FromArgb(80, 0, 0, 0)
+$muteBtn.BackColor = [System.Drawing.Color]::Transparent
+$muteBtn.ForeColor = [System.Drawing.Color]::Black
+$muteBtn.Font      = New-Object System.Drawing.Font("Segoe UI", 16)
+$muteBtn.Text      = [char]0x266B   # music note
+$muteBtn.Cursor    = [System.Windows.Forms.Cursors]::Hand
+
+$muteBtn.Add_Click({
+    if ($script:musicMuted) {
+        $script:mediaPlayer.Volume = 0.5
+        $script:musicMuted = $false
+        $this.Text = [char]0x266B
+    } else {
+        $script:mediaPlayer.Volume = 0
+        $script:musicMuted = $true
+        $this.Text = "X"
+    }
+})
+
+$headerPanel.Controls.Add($muteBtn)
 
 # ============================================================================
 # FOOTER
@@ -122,7 +166,6 @@ $statusLabel.Location  = New-Object System.Drawing.Point(14, 7)
 $statusLabel.BackColor = [System.Drawing.Color]::Transparent
 
 $footerPanel.Controls.Add($statusLabel)
-$form.Controls.Add($footerPanel)
 
 # ============================================================================
 # CONTENT
@@ -130,7 +173,12 @@ $form.Controls.Add($footerPanel)
 $contentPanel = New-Object System.Windows.Forms.Panel
 $contentPanel.Dock      = "Fill"
 $contentPanel.BackColor = $C_Bg
+
+# Add controls in correct dock order: Fill first, then edges
+# (WinForms docks last-added first, so header/footer must be added LAST)
 $form.Controls.Add($contentPanel)
+$form.Controls.Add($footerPanel)
+$form.Controls.Add($headerPanel)
 
 # ============================================================================
 # WELCOME VIEW
@@ -141,8 +189,8 @@ $welcomePanel.BackColor = $C_Bg
 
 # Welcome card
 $welcomeCard = New-Object System.Windows.Forms.Panel
-$welcomeCard.Location  = New-Object System.Drawing.Point(40, 30)
-$welcomeCard.Size      = New-Object System.Drawing.Size(660, 300)
+$welcomeCard.Location  = New-Object System.Drawing.Point(40, 16)
+$welcomeCard.Size      = New-Object System.Drawing.Size(660, 290)
 $welcomeCard.BackColor = $C_BgCard
 
 $wcText = New-Object System.Windows.Forms.Label
@@ -161,7 +209,7 @@ $installBtn = New-Object System.Windows.Forms.Button
 $installBtn.Text      = "BEGIN SETUP"
 $installBtn.Font      = $F_Btn
 $installBtn.Size      = New-Object System.Drawing.Size(260, 54)
-$installBtn.Location  = New-Object System.Drawing.Point(240, 370)
+$installBtn.Location  = New-Object System.Drawing.Point(240, 340)
 $installBtn.FlatStyle = "Flat"
 $installBtn.FlatAppearance.BorderSize = 0
 $installBtn.BackColor = $C_Accent
@@ -187,17 +235,17 @@ $script:stepControls = @{}
 function New-StepPanel {
     param([int]$Index, [string]$StepTitle, [string]$StepDesc)
 
-    $y = 16 + ($Index - 1) * 86
+    $y = 10 + ($Index - 1) * 78
 
     # Main card
     $panel = New-Object System.Windows.Forms.Panel
     $panel.Location  = New-Object System.Drawing.Point(30, $y)
-    $panel.Size      = New-Object System.Drawing.Size(680, 74)
+    $panel.Size      = New-Object System.Drawing.Size(680, 66)
     $panel.BackColor = $C_BgCard
 
     # Number badge (custom painted circle)
     $badge = New-Object System.Windows.Forms.Panel
-    $badge.Location  = New-Object System.Drawing.Point(16, 17)
+    $badge.Location  = New-Object System.Drawing.Point(16, 13)
     $badge.Size      = New-Object System.Drawing.Size(40, 40)
     $badge.BackColor = [System.Drawing.Color]::Transparent
 
@@ -208,7 +256,7 @@ function New-StepPanel {
     $titleLbl.Text      = $StepTitle
     $titleLbl.Font      = $F_StepName
     $titleLbl.ForeColor = $C_Text
-    $titleLbl.Location  = New-Object System.Drawing.Point(68, 12)
+    $titleLbl.Location  = New-Object System.Drawing.Point(68, 8)
     $titleLbl.Size      = New-Object System.Drawing.Size(300, 22)
     $titleLbl.BackColor = [System.Drawing.Color]::Transparent
 
@@ -217,13 +265,13 @@ function New-StepPanel {
     $detail.Text      = "Waiting..."
     $detail.Font      = $F_Detail
     $detail.ForeColor = $C_TextDim
-    $detail.Location  = New-Object System.Drawing.Point(68, 38)
+    $detail.Location  = New-Object System.Drawing.Point(68, 32)
     $detail.Size      = New-Object System.Drawing.Size(380, 24)
     $detail.BackColor = [System.Drawing.Color]::Transparent
 
     # Custom progress bar (owner-drawn panel)
     $progPanel = New-Object System.Windows.Forms.Panel
-    $progPanel.Location  = New-Object System.Drawing.Point(470, 28)
+    $progPanel.Location  = New-Object System.Drawing.Point(470, 24)
     $progPanel.Size      = New-Object System.Drawing.Size(190, 18)
     $progPanel.BackColor = [System.Drawing.Color]::Transparent
     $progPanel.Tag       = 0  # Store progress value in Tag
@@ -251,16 +299,51 @@ $progressPanel.Controls.Add((New-StepPanel -Index 3 -StepTitle "USB Printers"   
 $progressPanel.Controls.Add((New-StepPanel -Index 4 -StepTitle "Firewall"              -StepDesc "Allow port 3006"))
 $progressPanel.Controls.Add((New-StepPanel -Index 5 -StepTitle "Auto-Start Service"    -StepDesc "Background service at login"))
 
-# Overall progress label
-$overallLabel = New-Object System.Windows.Forms.Label
-$overallLabel.Text      = "Installing..."
-$overallLabel.Font      = $F_Body
-$overallLabel.ForeColor = $C_TextSub
-$overallLabel.Location  = New-Object System.Drawing.Point(30, 454)
-$overallLabel.Size      = New-Object System.Drawing.Size(680, 24)
-$overallLabel.TextAlign = "MiddleCenter"
-$overallLabel.BackColor = [System.Drawing.Color]::Transparent
-$progressPanel.Controls.Add($overallLabel)
+# Log box
+$logLabel = New-Object System.Windows.Forms.Label
+$logLabel.Text      = "LOG"
+$logLabel.Font      = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold)
+$logLabel.ForeColor = $C_TextDim
+$logLabel.Location  = New-Object System.Drawing.Point(32, 410)
+$logLabel.AutoSize  = $true
+$logLabel.BackColor = [System.Drawing.Color]::Transparent
+$progressPanel.Controls.Add($logLabel)
+
+$script:logBox = New-Object System.Windows.Forms.TextBox
+$script:logBox.Font       = New-Object System.Drawing.Font("Consolas", 8.5)
+$script:logBox.BackColor  = $C_BgCard
+$script:logBox.ForeColor  = $C_TextSub
+$script:logBox.Location   = New-Object System.Drawing.Point(30, 430)
+$script:logBox.Size       = New-Object System.Drawing.Size(680, 180)
+$script:logBox.Multiline  = $true
+$script:logBox.ReadOnly   = $true
+$script:logBox.ScrollBars = "Vertical"
+$script:logBox.BorderStyle = "None"
+$script:logBox.Text       = ""
+$progressPanel.Controls.Add($script:logBox)
+
+# Next button (shown when all steps complete)
+$nextBtn = New-Object System.Windows.Forms.Button
+$nextBtn.Text      = "NEXT"
+$nextBtn.Font      = $F_BtnSm
+$nextBtn.Size      = New-Object System.Drawing.Size(160, 42)
+$nextBtn.Location  = New-Object System.Drawing.Point(550, 622)
+$nextBtn.FlatStyle = "Flat"
+$nextBtn.FlatAppearance.BorderSize = 0
+$nextBtn.BackColor = $C_Accent
+$nextBtn.ForeColor = $C_Bg
+$nextBtn.Cursor    = [System.Windows.Forms.Cursors]::Hand
+$nextBtn.Visible   = $false
+$nextBtn.Add_MouseEnter({ $this.BackColor = $C_AccentHover })
+$nextBtn.Add_MouseLeave({ $this.BackColor = $C_Accent })
+$nextBtn.Add_Click({ Show-Completion })
+$progressPanel.Controls.Add($nextBtn)
+
+function Write-Log {
+    param([string]$Msg)
+    $time = Get-Date -Format "HH:mm:ss"
+    $script:logBox.AppendText("[$time] $Msg`r`n")
+}
 
 # ============================================================================
 # COMPLETION VIEW
@@ -517,6 +600,7 @@ $script:stepResults = @(0, "pending", "pending", "pending", "pending", "pending"
 $script:warnings = @()
 $script:errors = @()
 $script:pythonCmd = $null
+$script:lastLoggedStatus = ""
 $script:venvPython = $null
 
 $script:sync = [hashtable]::Synchronized(@{
@@ -577,7 +661,11 @@ $script:pollTimer.Add_Tick({
         $c.ProgBar.Invalidate()
     }
 
-    $overallLabel.Text = "Step $step of 5: $($c.Title.Text)..."
+    # Log status updates
+    if ($s.Status -and $s.Status -ne $script:lastLoggedStatus) {
+        Write-Log $s.Status
+        $script:lastLoggedStatus = $s.Status
+    }
 
     if ($s.Done) {
         $script:pollTimer.Stop()
@@ -590,14 +678,20 @@ $script:pollTimer.Add_Tick({
 
         $script:stepResults[$step] = $s.Result
 
+        $stepName = $c.Title.Text
         switch ($s.Result) {
-            "success" { Set-StepState -Step $step -State "success" -Detail $s.Detail }
+            "success" {
+                Set-StepState -Step $step -State "success" -Detail $s.Detail
+                Write-Log "$stepName -- OK: $($s.Detail)"
+            }
             "warning" {
                 Set-StepState -Step $step -State "warning" -Detail $s.Detail
+                Write-Log "$stepName -- WARNING: $($s.Detail)"
                 $script:warnings += $s.Detail
             }
             "error" {
                 Set-StepState -Step $step -State "error" -Detail $s.Detail
+                Write-Log "$stepName -- ERROR: $($s.Detail)"
                 $script:errors += $s.Detail
             }
         }
@@ -610,10 +704,17 @@ $script:pollTimer.Add_Tick({
     }
 })
 
+function Show-NextButton {
+    Write-Log "All steps finished. Click NEXT to continue."
+    $nextBtn.Visible = $true
+    $nextBtn.Focus()
+    $statusLabel.Text = "Setup finished -- review the log, then click Next"
+}
+
 function Start-NextStep {
     $script:currentStep++
 
-    if ($script:currentStep -gt 5) { Show-Completion; return }
+    if ($script:currentStep -gt 5) { Show-NextButton; return }
 
     # Step 2 depends on Step 1
     if ($script:currentStep -eq 2 -and $script:stepResults[1] -eq "error") {
@@ -628,12 +729,14 @@ function Start-NextStep {
         Set-StepState -Step 5 -State "skipped" -Detail "Skipped: No virtual environment"
         $script:stepResults[5] = "error"
         $script:errors += "Skipped: no virtual environment"
-        Show-Completion; return
+        Show-NextButton; return
     }
 
-    if ($script:currentStep -gt 5) { Show-Completion; return }
+    if ($script:currentStep -gt 5) { Show-NextButton; return }
 
     Set-StepState -Step $script:currentStep -State "running" -Detail "Starting..."
+    $sn = $script:stepControls[$script:currentStep].Title.Text
+    Write-Log "Starting step $($script:currentStep): $sn"
 
     switch ($script:currentStep) {
         1 { Run-Step1-Python }
@@ -1151,6 +1254,7 @@ $installBtn.Add_Click({
     $installBtn.Enabled = $false
     $welcomePanel.Visible = $false
     $progressPanel.Visible = $true
+    Write-Log "Setup started -- project: $ProjectDir"
     $script:currentStep = 0
     Start-NextStep
 })
@@ -1162,4 +1266,6 @@ $installBtn.Add_Click({
 
 $script:pollTimer.Stop()
 $script:pollTimer.Dispose()
+$script:mediaPlayer.Stop()
+$script:mediaPlayer.Close()
 $form.Dispose()
