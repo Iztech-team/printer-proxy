@@ -1,4 +1,4 @@
-from PIL import Image, ImageOps
+from PIL import Image, ImageEnhance, ImageOps
 
 from settings.config import ALLOWED_EXTENSIONS
 
@@ -8,21 +8,9 @@ def allowed_file(filename: str) -> bool:
 
 
 def prepare_image_for_thermal(filepath: str, paper_width: int, fast: bool = True) -> str:
-    """Optimize an image for thermal printing.
-
-    Converts to 1-bit black/white using Floyd-Steinberg dithering.
-    This is what thermal printers natively understand — each dot is either
-    burned (black) or not (white). Dithering simulates grayscale by varying
-    the density of black dots.
-
-    Args:
-        filepath: Path to the image file (modified in-place).
-        paper_width: Target width in pixels (e.g. 510 for 80mm paper).
-        fast: If True, reduce resolution for faster printing.
-    """
     img = Image.open(filepath)
     try:
-        # Handle transparency — replace with white background
+        # 1. Transparency → white background
         if img.mode == "RGBA" or "transparency" in img.info:
             background = Image.new("RGB", img.size, (255, 255, 255))
             if img.mode == "RGBA":
@@ -33,21 +21,33 @@ def prepare_image_for_thermal(filepath: str, paper_width: int, fast: bool = True
         elif img.mode != "RGB":
             img = img.convert("RGB")
 
-        # Resize to fill full paper width
+        # 2. Resize to paper width
         if img.width != paper_width:
             ratio = paper_width / img.width
             new_height = int(img.height * ratio)
             img = img.resize((paper_width, new_height), Image.Resampling.LANCZOS)
 
-        # Convert to grayscale
+        # 3. Auto-contrast — stretch histogram, clip 0.5% extremes
+        img = ImageOps.autocontrast(img, cutoff=0.5)
+
+        # 4. Contrast boost — 30% increase
+        img = ImageEnhance.Contrast(img).enhance(1.3)
+
+        # 5. Sharpness boost — 20% increase
+        img = ImageEnhance.Sharpness(img).enhance(1.2)
+
+        # 6. Grayscale
         img = img.convert("L")
 
-        # Auto-contrast to use full brightness range
-        img = ImageOps.autocontrast(img, cutoff=1)
+        # 7. Gamma correction — 0.9 brightens midtones slightly
+        gamma = 0.9
+        lut = [min(255, int(255 * ((i / 255.0) ** gamma))) for i in range(256)]
+        img = img.point(lut)
 
-        # Convert to 1-bit with Floyd-Steinberg dithering
-        # This produces the best visual quality on thermal printers —
-        # it simulates grayscale by distributing black dots proportionally
+        # 8. Near-white cleanup — snap faint grays to pure white
+        img = img.point(lambda x: 255 if x > 245 else x)
+
+        # 9. Floyd-Steinberg dithering to 1-bit
         img = img.convert("1", dither=Image.Dither.FLOYDSTEINBERG)
 
         img.save(filepath, "PNG")

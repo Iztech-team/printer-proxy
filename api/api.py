@@ -217,7 +217,7 @@ async def open_cash(name: str, pin: int = Query(0), t1: int = Query(100), t2: in
 
 
 @app.post("/api/printers/{name}/actions/printImage")
-async def print_image(name: str, image: UploadFile, center: bool = Query(True), paper_width: int = Query(576), cut: bool = Query(True), lines_after: int = Query(0), fast: bool = Query(True, description="Fast mode: lighter output, faster printing")):
+async def print_image(name: str, image: UploadFile, center: bool = Query(True), paper_width: int = Query(512), cut: bool = Query(True), lines_after: int = Query(0), fast: bool = Query(True, description="Fast mode: lighter output, faster printing")):
     validate_printer(name)
 
     if not image.filename:

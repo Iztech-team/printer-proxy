@@ -34,17 +34,16 @@ def action_open_cash(printer_name, params):
 
 
 def action_print_image(printer_name, filepath, center, cut, lines_after):
-    try:
-        with printer_session(printer_name) as p:
-            if center:
-                p.set(align="center")
-            p.image(filepath)
-            if center:
-                p.set(align="left")
-            feed_and_cut(p, {"cut": cut, "lines_after": lines_after})
-    finally:
-        if os.path.exists(filepath):
-            try:
-                os.remove(filepath)
-            except Exception:
-                pass
+    with printer_session(printer_name) as p:
+        if center:
+            p.set(align="center")
+        p.image(filepath)
+        if center:
+            p.set(align="left")
+        feed_and_cut(p, {"cut": cut, "lines_after": lines_after})
+    # Only delete after successful print — retries need the file
+    if os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+        except Exception:
+            pass
